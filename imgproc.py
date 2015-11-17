@@ -2,6 +2,56 @@ import numpy as np
 import numpy.matlib as npml
 import cv2
 
+class Contours:
+	def __init__(self, contours, hierarchy = None):
+		self.contours = contours
+		#If hierarchy specified then we create an iterator to iterate over it...
+		self.hierarchy = hierarchy
+		self.nC = len(contours)
+
+	def traverse(self):
+		levels = np.zeros((self.nC, 1))
+		for idx,ct in enumerate(self.contours):
+			if hierarchy is not None: 
+				parent = self.hierarchy[0,idx,3]
+				if parent == -1:
+					level = 0 
+				else:
+					level = levels[parent]+1 
+				levels[idx] = level			
+			else:
+				level = None 
+			yield (ct, level)
+
+	def remove(self, idx):
+		toremove = []
+		self._remove(toremove, idx, 1)
+		print 'Removing', toremove
+		return toremove  
+
+	def _remove(self, toremove, idx, top):
+		#Remove a contour and all of its children
+		#If node has children, remove these first
+		print 'I am node', idx, ' top:', top 
+		print 'Checking for children'
+		if self.hierarchy[0,idx,2] != -1:
+			print 'I have children, removing them first'
+			toremove.append(self._remove(toremove, self.hierarchy[0,idx,2], 0))
+		print 'Children checking done'
+		print 'Checking for siblings to be removed'
+		#If node has siblings and we are in a subtree, delete the siblings
+		if self.hierarchy[0,idx,0] != -1 and top == 0:
+			print 'I have siblings who also need removing. Removing them'
+			toremove.append(self._remove(toremove, self.hierarchy[0,idx,0], 0))
+		print 'Sibling removal done'
+		#Finally remove ourselves
+		print 'Removing myself(', idx, ')' 
+		if top == 0:
+			return idx 
+		else:
+			toremove.append(idx)
+			return toremove
+
 def findObject(img):
 	"""Find object within image
 
@@ -45,6 +95,10 @@ def findObjectThreshold(img, threshold = 10):
 		-contours: contours outlining mask
 		-hierarchy: hierarchy of contours
 	"""
+	#Test code:
+	img = cv2.imread('./video/testcontours.jpg')
+	threshold = 10
+
 	#Just try simple thresholding instead: (quick!, seems to work fine)
 	frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
