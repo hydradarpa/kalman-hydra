@@ -1,6 +1,10 @@
 import numpy as np
 import numpy.matlib as npml
+import matplotlib as mpl 
 import cv2
+import distmesh as dm 
+
+from matplotlib import pyplot as plt
 
 class Contours:
 	def __init__(self, contours, hierarchy = None):
@@ -10,9 +14,9 @@ class Contours:
 		self.nC = len(contours)
 
 	def traverse(self):
-		levels = np.zeros((self.nC, 1))
+		levels = np.zeros((self.nC, 1)).tolist()
 		for idx,ct in enumerate(self.contours):
-			if hierarchy is not None: 
+			if self.hierarchy is not None: 
 				parent = self.hierarchy[0,idx,3]
 				if parent == -1:
 					level = 0 
@@ -24,33 +28,63 @@ class Contours:
 			yield (ct, level)
 
 	def remove(self, idx):
+		#Remove a contour and all of its children
 		toremove = []
+		#Do recursively
 		self._remove(toremove, idx, 1)
-		print 'Removing', toremove
-		return toremove  
+		#We have the nodes to delete, now we remove these from contours list, and 
+		#reindex the hierarchy variable
+		nR = len(toremove)
+		minidx = min(toremove)
+		maxidx = max(toremove)
+		contours = []
+		hierarchy = []
+		for idx in range(self.nC):
+			if idx not in toremove:
+				contours.append(self.contours[idx])
+				hierarchy.append(self.hierarchy[0,idx,:].tolist())
+		self.contours = contours
+		hierarchy = np.array(hierarchy, dtype = 'int32')
+		hierarchy[np.where(np.logical_and(hierarchy >= minidx, hierarchy <= maxidx))] = -1 
+		hierarchy[np.where(hierarchy > maxidx)] = hierarchy[np.where(hierarchy > maxidx)] - nR 
+		self.hierarchy = hierarchy[np.newaxis, :,:]
+		self.nC = len(contours)
 
 	def _remove(self, toremove, idx, top):
-		#Remove a contour and all of its children
-		#If node has children, remove these first
-		print 'I am node', idx, ' top:', top 
-		print 'Checking for children'
+		#If I have children, remove these first
 		if self.hierarchy[0,idx,2] != -1:
-			print 'I have children, removing them first'
 			toremove.append(self._remove(toremove, self.hierarchy[0,idx,2], 0))
-		print 'Children checking done'
-		print 'Checking for siblings to be removed'
-		#If node has siblings and we are in a subtree, delete the siblings
+		#If I have siblings and I am a subtree, delete my siblings too
 		if self.hierarchy[0,idx,0] != -1 and top == 0:
-			print 'I have siblings who also need removing. Removing them'
 			toremove.append(self._remove(toremove, self.hierarchy[0,idx,0], 0))
-		print 'Sibling removal done'
-		#Finally remove ourselves
-		print 'Removing myself(', idx, ')' 
+		#Finally remove myself
 		if top == 0:
 			return idx 
 		else:
 			toremove.append(idx)
 			return toremove
+
+def pointPolygonGrid(f, nx, ny):
+	grid = np.zeros((nx, ny))
+	for x in range(nx):
+		for y in range(ny):
+			#Maybe can set this to false...
+			grid[x,y] = f((y,x))
+	return grid 
+
+def ppt(ct, p, b):	 
+	if type(p) == tuple:
+		return -cv2.pointPolygonTest(ct, p, b)
+	elif len(np.shape(p)) == 1:
+		return -cv2.pointPolygonTest(ct, tuple(p), b)
+	else:
+		return np.array([-cv2.pointPolygonTest(ct, tuple(pp), b) for pp in np.array(p)])
+
+def ddunion(ctrs, p, b):
+	if len(ctrs) == 1:
+		return ppt(ctrs[0], p, b)
+	else:
+		return dm.dunion(ppt(ctrs[0], p, b), ddunion(ctrs[1:], p, b))
 
 def findObject(img):
 	"""Find object within image
@@ -108,18 +142,57 @@ def findObjectThreshold(img, threshold = 10):
 	mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
 	#frame = frame*mask2[:,:,np.newaxis]
 	#Find contours of mask
-	im2, contours, hierarchy = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
-	#Remove small contours
-	contours2 = []
-	for ct in contours:
-		area = cv2.contourArea(ct)
-		if area > 40:
-			contours2.append(ct)
-	contours = contours2
+	im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
+	ctrs = Contours(c, h)
+
+	#Remove contours that are smaller than 40 square pixels, or that are above
+	#level one
+	changed = True
+	maxarea = 0
+	for (ct, level) in ctrs.traverse():
+		maxarea = max(maxarea, cv2.contourArea(ct))
+	while changed:
+		changed = False 
+		for idx, (ct, level) in enumerate(ctrs.traverse()):
+			area = cv2.contourArea(ct)
+			if area < maxarea and level == 0:
+				ctrs.remove(idx)
+				changed = True 
+				break 
+			if area < 40:
+				ctrs.remove(idx)
+				changed = True
+				break 
+			if level > 1:
+				ctrs.remove(idx)
+				changed = True 
+				break 
+
+	#Make the signed diff function
+	#All of them
+	fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ddunion(ctrs.contours[1:], p, True))
+	#One of them
+	#fd = lambda p: dm.dunion(ppt(ctrs.contours[2], p, True), ppt(ctrs.contours[1], p, True))
+	#One of them
+	#fd = lambda p: ppt(ctrs.contours[0], p, True)
+	#Two of them
+	#fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ppt(ctrs.contours[1], p, True))
+	#fd = lambda p: ddunion(ctrs.contours[1:], p, True)
+	nx,ny = np.shape(img)[0:2]
+	grid = pointPolygonGrid(fd, nx, ny)
+
+	#Test Delaunay
+	p, t = dm.distmesh2d(fd, dm.huniform, 2, (0, 0, 801, 801))
 
 	#Draw contours
-	cv2.drawContours(img, contours, -1, (0,255,0), 3)
-	return (mask2, contours, hierarchy)
+	#cv2.drawContours(grid, ctrs.contours[0:2], -1, (0,255,0), 3)
+	plt.imshow(grid)
+	plt.colorbar()
+	plt.show()
+
+	#cv2.imshow('image', grid)
+	#cv2.waitKey(0)
+	return (mask2, ctrs, fd)
 
 def placeInteriorPoints(mask, npoints):
 	"""Place a given number of points in interior of an object 
@@ -171,14 +244,15 @@ def drawPoints(img, pts, types = None):
 	npts = len(pts)
 	colors = [[0, 255, 0], [255, 0, 0], [0, 0, 255]]
 	if types is None:
-		types = np.zeros(npts, 1)
+		types = [0]*npts 
 	for (i,pt) in enumerate(pts):
-		cv2.circle(img,tuple(pt),3,colors[types[i]],-1)
+		cv2.circle(img,tuple(pt.astype(int)),3,colors[types[i]],-1)
 
-def drawTriangles(img, grid):
+def drawGrid(img, pts, bars):
+	npts = len(bars)
 	color = [0, 255, 0]
-	for pt in pts:
-		cv2.circle(img,tuple(pt),3,color,-1)
+	for (bar) in bars:
+		cv2.line(img, tuple(pts[bar[0]].astype(int)), tuple(pts[bar[1]].astype(int)), color)
 
 def rect_contains(rect, point) :
     if point[0] < rect[0] :
@@ -191,22 +265,3 @@ def rect_contains(rect, point) :
         return False
     return True
 
-def drawDelaunay(img, subdiv, borderpts, delaunay_color) :
-	triangleList = subdiv.getTriangleList();
-	size = img.shape
-	r = (0, 0, size[1], size[0])
-	borderlist = np.ndarray.tolist(borderpts)
-	for t in triangleList :         
-		pt1 = [t[0], t[1]]
-		pt2 = [t[2], t[3]]
-		pt3 = [t[4], t[5]]
-		#If all three pts are in borderpts, don't draw it
-		if pt1 in borderlist and pt2 in borderlist and pt3 in borderlist:
-			continue 
-		if rect_contains(r, pt1) and rect_contains(r, pt2) and rect_contains(r, pt3) :         
-			cv2.line(img, tuple(pt1), tuple(pt2), delaunay_color, 1, cv2.LINE_AA, 0)
-			cv2.line(img, tuple(pt2), tuple(pt3), delaunay_color, 1, cv2.LINE_AA, 0)
-			cv2.line(img, tuple(pt3), tuple(pt1), delaunay_color, 1, cv2.LINE_AA, 0)
-
-def computeDelaunay(pts, img):
-	retur
