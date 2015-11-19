@@ -3,7 +3,9 @@ import numpy.matlib as npml
 import matplotlib as mpl 
 import cv2
 import distmesh as dm 
-
+import scipy.spatial as spspatial
+import distmesh.mlcompat as ml
+import distmesh.utils as dmutils
 from matplotlib import pyplot as plt
 
 class Contours:
@@ -68,7 +70,6 @@ def pointPolygonGrid(f, nx, ny):
 	grid = np.zeros((nx, ny))
 	for x in range(nx):
 		for y in range(ny):
-			#Maybe can set this to false...
 			grid[x,y] = f((y,x))
 	return grid 
 
@@ -116,7 +117,7 @@ def findObject(img):
 	#plt.imshow(img),plt.colorbar(),plt.show()
 	return (mask2, contours, hierarchy)
 
-def findObjectThreshold(img, threshold = 10):
+def findObjectThreshold(img, threshold = 7):
 	"""Find object within image using simple thresholding
 
 	Input:
@@ -130,21 +131,19 @@ def findObjectThreshold(img, threshold = 10):
 		-hierarchy: hierarchy of contours
 	"""
 	#Test code:
-	img = cv2.imread('./video/testcontours.jpg')
-	threshold = 10
+	#img = cv2.imread('./video/testcontours.jpg')
 
 	#Just try simple thresholding instead: (quick!, seems to work fine)
 	frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 	#Global threshold
-	#mask = np.where(frame_gray < 10,0,1)
-	ret1, mask = cv2.threshold(frame_gray, 7, 255, cv2.THRESH_TOZERO)
+	ret1, mask = cv2.threshold(frame_gray, threshold, 255, cv2.THRESH_TOZERO)
 	mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
-	#frame = frame*mask2[:,:,np.newaxis]
+
 	#Find contours of mask
 	im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
 	ctrs = Contours(c, h)
-
+	
 	#Remove contours that are smaller than 40 square pixels, or that are above
 	#level one
 	changed = True
@@ -171,25 +170,15 @@ def findObjectThreshold(img, threshold = 10):
 	#Make the signed diff function
 	#All of them
 	fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ddunion(ctrs.contours[1:], p, True))
-	#One of them
+	#Two of them
 	#fd = lambda p: dm.dunion(ppt(ctrs.contours[2], p, True), ppt(ctrs.contours[1], p, True))
 	#One of them
 	#fd = lambda p: ppt(ctrs.contours[0], p, True)
-	#Two of them
+	#Diff of two of them
 	#fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ppt(ctrs.contours[1], p, True))
-	#fd = lambda p: ddunion(ctrs.contours[1:], p, True)
-	nx,ny = np.shape(img)[0:2]
-	grid = pointPolygonGrid(fd, nx, ny)
-
-	#Test Delaunay
-	p, t = dm.distmesh2d(fd, dm.huniform, 2, (0, 0, 801, 801))
 
 	#Draw contours
 	#cv2.drawContours(grid, ctrs.contours[0:2], -1, (0,255,0), 3)
-	plt.imshow(grid)
-	plt.colorbar()
-	plt.show()
-
 	#cv2.imshow('image', grid)
 	#cv2.waitKey(0)
 	return (mask2, ctrs, fd)
@@ -253,15 +242,4 @@ def drawGrid(img, pts, bars):
 	color = [0, 255, 0]
 	for (bar) in bars:
 		cv2.line(img, tuple(pts[bar[0]].astype(int)), tuple(pts[bar[1]].astype(int)), color)
-
-def rect_contains(rect, point) :
-    if point[0] < rect[0] :
-        return False
-    elif point[1] < rect[1] :
-        return False
-    elif point[0] > rect[2] :
-        return False
-    elif point[1] > rect[3] :
-        return False
-    return True
 
