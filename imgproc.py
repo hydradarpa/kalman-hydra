@@ -6,6 +6,9 @@ import distmesh as dm
 import scipy.spatial as spspatial
 import distmesh.mlcompat as ml
 import distmesh.utils as dmutils
+import functions.video
+from functions.common import draw_str
+
 from matplotlib import pyplot as plt
 
 class Contours:
@@ -65,6 +68,38 @@ class Contours:
 		else:
 			toremove.append(idx)
 			return toremove
+
+class OpticalFlowLK:
+	def __init__(self, cam, lk_params, feature_params):
+		self.cam = cam
+		self.p0 = None
+		self.p1 = None 
+		self.use_ransac = True
+		self.lk_params = lk_params
+		self.feature_params = feature_params
+
+	def checkedTrace(self, img0, img1, p0, back_threshold = 1.0):
+		p1, st, err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **self.lk_params)
+		p0r, st, err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **self.lk_params)
+		d = abs(p0-p0r).reshape(-1, 2).max(-1)
+		status = d < back_threshold
+		return p1, status
+	
+	def run(self, frame_gray, prev_gray, vis):
+		green = (0, 255, 0)
+		red = (0, 0, 255)
+		p0 = cv2.goodFeaturesToTrack(prev_gray, **self.feature_params)
+		p2, trace_status = self.checkedTrace(prev_gray, frame_gray, p0)
+
+		self.p1 = p2[trace_status].copy()
+		self.p0 = p0[trace_status].copy()
+
+		for (x0, y0), (x1, y1), good in zip(self.p0[:,0], self.p1[:,0], trace_status[:]):
+			if good:
+				cv2.line(vis, (x0, y0), (x1, y1), (0, 128, 0))
+			cv2.circle(vis, (x1, y1), 2, (red, green)[good], -1)
+		draw_str(vis, (20, 20), 'feature count: %d' % len(self.p1))
+
 
 def pointPolygonGrid(f, nx, ny):
 	grid = np.zeros((nx, ny))
@@ -169,7 +204,10 @@ def findObjectThreshold(img, threshold = 7):
 
 	#Make the signed diff function
 	#All of them
-	fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ddunion(ctrs.contours[1:], p, True))
+	if len(ctrs.contours) > 1:
+		fd = lambda p: dm.ddiff(ppt(ctrs.contours[0], p, True), ddunion(ctrs.contours[1:], p, True))
+	else:
+		fd = lambda p: ppt(ctrs.contours[0], p, True)
 	#Two of them
 	#fd = lambda p: dm.dunion(ppt(ctrs.contours[2], p, True), ppt(ctrs.contours[1], p, True))
 	#One of them
@@ -243,3 +281,5 @@ def drawGrid(img, pts, bars):
 	for (bar) in bars:
 		cv2.line(img, tuple(pts[bar[0]].astype(int)), tuple(pts[bar[1]].astype(int)), color)
 
+def interpolateSparseOpticFlow():
+	return 
