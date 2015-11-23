@@ -23,7 +23,11 @@ class DistMesh:
 		self.geps=.001*h0;
 		self.deps=np.sqrt(np.finfo(np.double).eps)*h0;
 		self.densityctrlfreq = 30;
-		self.k = 1
+		self.k = 1.5
+		self.maxiter = 300
+		#Force law
+		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
+		self.F = lambda L: -self.k*(L-h0)
 
 	def createMesh(self, ctrs, fd, frame_orig):
 		pfix = None 
@@ -59,7 +63,8 @@ class DistMesh:
 		#Mesh creation
 		################################################################################
 		
-		while True:
+		while count < self.maxiter:
+			print count 
 			count += 1
 			# 3. Retriangulation by the Delaunay algorithm
 			dist = lambda p1, p2: np.sqrt(((p1-p2)**2).sum(1))
@@ -121,8 +126,8 @@ class DistMesh:
 		self.bars = bars
 		self.L = L 
 
-	def updateMesh(self, ctrs, fd, frame_orig, pfix = None, n_iter = 2):
-	
+	def updateMesh(self, ctrs, fd, frame_orig, pfix = None, n_iter = 20):
+		deltat = 0.1
 		xmin, ymin, xmax, ymax = self.bbox
 		
 		if pfix is not None:
@@ -139,8 +144,8 @@ class DistMesh:
 		#Mesh updates
 		################################################################################
 		
-		self.delaunay = spspatial.Delaunay(self.p)
-		self.t = self.delaunay.vertices       # List of triangles
+		#self.delaunay = spspatial.Delaunay(self.p)
+		#self.t = self.delaunay.vertices       # List of triangles
 		for ii in range(n_iter):
 			dist = lambda p1, p2: np.sqrt(((p1-p2)**2).sum(1))
 			if (dist(self.p, pold)/self.h0).max() > self.ttol:          # Any large movement?
@@ -157,17 +162,19 @@ class DistMesh:
 			barvec = self.p[bars[:,0]] - self.p[bars[:,1]]         # List of bar vectors
 			L = np.sqrt((barvec**2).sum(1))              # L = Bar lengths
 			hbars = self.fh(self.p[bars].sum(1)/2)
-			L0 = 5*self.h0*np.ones_like(L);
+			L0 = 1.4*self.h0*np.ones_like(L);
 		
-			F = self.k*(L0-L)
-			F[F<0] = 0                         # Bar forces (scalars)
+			#F = self.k*(L0-L)
+			#F[F<0] = 0                         # Bar forces (scalars)
+			F = self.F(L) 
 			Fvec = F[:,None]/L[:,None].dot([[1,1]])*barvec # Bar forces (x,y components)
 			Ftot = ml.dense(bars[:,[0,0,1,1]],
 											np.repeat([[0,1,0,1]], len(F), axis=0),
 											np.hstack((Fvec, -Fvec)),
 											shape=(N, 2))
 			Ftot[:nfix] = 0                              # Force = 0 at fixed points
-			self.p += self.deltat*Ftot                             # Update node positions
+			#self.p += self.deltat*Ftot                             # Update node positions
+			self.p += deltat*Ftot                             # Update node positions
 		
 			d = fd(self.p); ix = d>0                          # Find points outside (d>0)
 			ddeps = 1e-1

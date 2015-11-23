@@ -275,10 +275,17 @@ def drawPoints(img, pts, types = None):
 	for (i,pt) in enumerate(pts):
 		cv2.circle(img,tuple(pt.astype(int)),3,colors[types[i]],-1)
 
-def drawGrid(img, pts, bars):
+def drawGrid(img, pts, bars, L = None, F = None):
 	npts = len(bars)
-	color = [0, 255, 0]
-	for (bar) in bars:
+	if L is not None:
+		colors = np.zeros((npts, 3))
+		forces = F(L)
+		maxF = np.max(forces)
+		colors[:,1] = 100+155*forces/maxF
+	else:
+		colors = npml.repmat([0, 255, 0], npts, 1)
+
+	for (bar, color) in zip(bars, colors):
 		cv2.line(img, tuple(pts[bar[0]].astype(int)), tuple(pts[bar[1]].astype(int)), color)
 
 def interpolateSparseOpticFlow():
