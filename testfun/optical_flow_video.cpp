@@ -213,7 +213,7 @@ int process(VideoCapture& capture, std::string fn_out) {
 	
 	cout << "Finished. ENTER to exit" << endl;
 	outputVideo.release();
-	getchar();
+	//getchar();
 	return 0;
 }
 
