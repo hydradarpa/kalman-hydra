@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
-cap = cv2.VideoCapture("./video/local_prop_cb_with_bud.avi")
-#cap = cv2.VideoCapture("./video/20150306_GCaMP_Chl_EC_local_prop.avi")
+#cap = cv2.VideoCapture("./video/local_prop_cb_with_bud.avi")
+cap = cv2.VideoCapture("./video/20150306_GCaMP_Chl_EC_local_prop.avi")
 
 ret, frame1 = cap.read()
 prvs = cv2.cvtColor(frame1,cv2.COLOR_BGR2GRAY)
@@ -9,7 +9,7 @@ hsv = np.zeros_like(frame1)
 hsv[...,1] = 255
 
 #Save the output as an avi file
-filename = "./video/local_prop_cb_with_bud_denseflow.mp4"
+filename = "./flows/20150306_GCaMP_Chl_EC_local_prop_.mp4"
 fps = 20.0
 framesize = np.shape(frame1)[0:2]
 framesize = framesize[::-1]
@@ -38,10 +38,10 @@ while(cap.isOpened()):
       #poly_sigma  standard deviation of the Gaussian that is used to smooth derivatives used as a basis for the polynomial expansion; for poly_n=5, you can set poly_sigma=1.1, for poly_n=7, a good value would be poly_sigma=1.5.
       #flags 
 
-      #flow = cv2.calcOpticalFlowFarneback(prvs,next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+      flow = cv2.calcOpticalFlowFarneback(prvs,next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
 
       #Deep flow (seems very slow)
-      flow = deepflow.calc(prvs, next, f)
+      #flow = deepflow.calc(prvs, next, f)
 
       #Simple flow (also seems very slow)
       #flow = cv2.optflow.calcOpticalFlowSF(prvs, next, f, 3, 2, 4, 4.1, 25, 18, 55, 25, 0, 18, 55, 25, 10)

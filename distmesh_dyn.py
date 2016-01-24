@@ -152,7 +152,6 @@ class DistMesh:
 				pold = self.p.copy()                          # Save current positions
 				pmid = self.p[self.t].sum(1)/3                     # Compute centroids
 				self.t = self.t[fd(pmid) < -self.geps]                  # Keep interior triangles
-	
 				bars = np.vstack((self.t[:, [0,1]],
 									self.t[:, [1,2]],
 									self.t[:, [2,0]]))          # Interior bars duplicated
