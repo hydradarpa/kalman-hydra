@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-cap = cv2.VideoCapture("./video/local_prop_cb_with_bud.avi")
+cap = cv2.VideoCapture("/home/lansdell/projects/hydra/video/local_prop_cb_with_bud.avi")
 
 ret, frame1 = cap.read()
 prvs = cv2.cvtColor(frame1,cv2.COLOR_BGR2GRAY)
