@@ -159,25 +159,37 @@ int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& img)
 	return 0;
 }
 
-int process(VideoCapture& capture) {
+int process(VideoCapture& capture, std::string fn_out) {
 	int n = 0;
 	char filename[200];
 	string window_name = "video | q or esc to quit";
 	cout << "press space to save a picture. q or esc to quit" << endl;
-	namedWindow(window_name, WINDOW_KEEPRATIO); //resizable window;
+	//namedWindow(window_name, WINDOW_KEEPRATIO); //resizable window;
 	Mat next, prvs, frame, flow, dst;
 	double minf, maxf, mind, maxd;
 	capture >> frame;
 	cvtColor(frame, prvs, CV_BGR2GRAY);
+
+    int ex = CV_FOURCC('M', 'J', 'P', 'G');
+	//int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));     // Get Codec Type- Int form
+    Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH),    // Acquire input size
+                  (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+	VideoWriter outputVideo;                                  // Open the output
+	//outputVideo.open(fn_out, 0, capture.get(CAP_PROP_FPS), S, true);
+	//outputVideo.open(fn_out, ex, capture.get(CAP_PROP_FPS), S, true);
+	//outputVideo.open(fn_out, CV_FOURCC('X','V','I','D'), capture.get(CAP_PROP_FPS), S, true);
+	outputVideo.open(fn_out, ex, 20, S, true);
+
 	for (;;) {
 		capture >> frame;
 		cvtColor(frame, next, CV_BGR2GRAY);
 		if (next.empty())
 			break;
-		//Process flow here
+		//Process flow
 		processflow_gpu(prvs, next, flow);
-		cv::addWeighted( frame, .3, flow, .7, 0.0, dst);
-		imshow(window_name, dst);
+		cv::addWeighted( frame, .7, flow, .3, 0.0, dst);
+		//cv::add( frame, flow, dst);
+		//imshow(window_name, dst);
 		char key = (char)waitKey(30); //delay N millis, usually long enough to display and capture input
 		switch (key) {
 		case 'q':
@@ -186,16 +198,21 @@ int process(VideoCapture& capture) {
 			return 0;
 		case ' ': //Save an image
 			sprintf(filename,"filename%.3d.jpg",n++);
-			imwrite(filename,dst);
+			//imwrite(filename,dst);
+			imwrite(filename,flow);
 			cout << "Saved " << filename << endl;
 			break;
 		default:
 			break;
 		}
+		//outputVideo << dst;
+		//outputVideo.write(dst);
+		outputVideo.write(flow);
 		prvs = next.clone();
 	}
 	
 	cout << "Finished. ENTER to exit" << endl;
+	outputVideo.release();
 	getchar();
 	return 0;
 }
@@ -204,7 +221,7 @@ void help(char** av) {
 	cout << "This program captures frames from a video file, image sequence (01.jpg, 02.jpg ... 10.jpg) or camera connected to your computer." << endl
 		 << "It then uses a Brox GPU implementation to compute optic flow" << endl
 		 << endl
-		 << "Usage:\n" << av[0] << " <video file, image sequence or device number>" << endl
+		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename>" << endl
 		 << "q,Q,esc -- quit" << endl
 		 << "space   -- save frame" << endl << endl
 		 << "\tTo capture from a camera pass the device number. To find the device number, try ls /dev/video*" << endl
@@ -216,11 +233,12 @@ void help(char** av) {
 }
 
 int main(int ac, char** av) {
-	if (ac != 2) {
+	if (ac != 3) {
 		help(av);
 		return 1;
 	}
 	std::string arg = av[1];
+	std::string fn_out = av[2];
 	VideoCapture capture(arg); //try to open string, this will attempt to open it as a video file or image sequence
 	if (!capture.isOpened()) //if this fails, try to open as a video camera, through the use of an integer param
 		capture.open(atoi(arg.c_str()));
@@ -229,5 +247,5 @@ int main(int ac, char** av) {
 		help(av);
 		return 1;
 	}
-	return process(capture);
+	return process(capture, fn_out);
 }
