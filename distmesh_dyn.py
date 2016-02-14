@@ -8,10 +8,10 @@ import distmesh.utils as dmutils
 from imgproc import * 
 
 class DistMesh:
-	def __init__(self, frame_orig, h0 = 25, dptol = 0.01):
+	def __init__(self, frame_orig, h0 = 35, dptol = 0.01):
 		self.dptol = dptol
 		self.h0 = h0
-
+		self.N = 0
 		self.fh = dm.huniform; 
 		nx,ny = np.shape(frame_orig)[0:2]
 		self.nx = nx
@@ -22,14 +22,14 @@ class DistMesh:
 		self.deltat=.2
 		self.geps=.001*h0;
 		self.deps=np.sqrt(np.finfo(np.double).eps)*h0;
-		self.densityctrlfreq = 30;
+		self.densityctrlfreq = 1;
 		self.k = 1.5
 		self.maxiter = 300
 		#Force law
 		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
 		self.F = lambda L: -self.k*(L-h0)
 
-	def createMesh(self, ctrs, fd, frame_orig):
+	def createMesh(self, ctrs, fd, frame_orig, plot = False):
 		pfix = None 
 	
 		# Extract bounding box
@@ -55,6 +55,7 @@ class DistMesh:
 		else:
 			nfix = 0
 		N = p.shape[0]                                   # Number of points N
+		self.N = N
 		
 		count = 0
 		pold = float('inf')                              # For first iteration
@@ -85,10 +86,11 @@ class DistMesh:
 					frame = frame_orig.copy()
 					#drawPoints(frame, p)
 					drawGrid(frame, p, bars)
-					cv2.imshow('frame',frame)
-					k = cv2.waitKey(30) & 0xff
-					if k == 27:
-						break
+					if plot:
+						cv2.imshow('frame',frame)
+						k = cv2.waitKey(30) & 0xff
+						if k == 27:
+							break
 		
 			# 6. Move mesh points based on bar lengths L and forces F
 			barvec = p[bars[:,0]] - p[bars[:,1]]         # List of bar vectors
@@ -187,63 +189,5 @@ class DistMesh:
 		self.bars = bars
 		self.L = L 
 
-
-#	def updateMesh(self, ctrs, fd, frame_orig, pfix = None, n_iter = 4):
-#	
-#		xmin, ymin, xmax, ymax = self.bbox
-#		
-#		if pfix is not None:
-#			self.p = ml.setdiff_rows(self.p, pfix)
-#			pfix = ml.unique_rows(pfix)
-#			nfix = pfix.shape[0]
-#		else:
-#			nfix = 0
-#	
-#		N = self.p.shape[0]                                   # Number of points N
-#		pold = float('inf')                              # For first iteration
-#	
-#		################################################################################
-#		#Mesh updates
-#		################################################################################
-#		
-#		for ii in range(n_iter):
-#			dist = lambda p1, p2: np.sqrt(((p1-p2)**2).sum(1))
-#			if (dist(self.p, pold)/self.h0).max() > self.ttol:          # Any large movement?
-#				pold = self.p.copy()                          # Save current positions
-#				self.delaunay = spspatial.Delaunay(self.p)
-#				self.t = self.delaunay.vertices       # List of triangles
-#				pmid = self.p[self.t].sum(1)/3                     # Compute centroids
-#				self.t = self.t[fd(pmid) < -self.geps]                  # Keep interior triangles
-#	
-#				bars = np.vstack((self.t[:, [0,1]],
-#									self.t[:, [1,2]],
-#									self.t[:, [2,0]]))          # Interior bars duplicated
-#				bars.sort(axis=1)
-#				bars = ml.unique_rows(bars)              # Bars as node pairs
-#	
-#			barvec = self.p[bars[:,0]] - self.p[bars[:,1]]         # List of bar vectors
-#			L = np.sqrt((barvec**2).sum(1))              # L = Bar lengths
-#			hbars = self.fh(self.p[bars].sum(1)/2)
-#			L0 = 1.4*self.h0*np.ones_like(L);
-#		
-#			F = L0-L
-#			F[F<0] = 0                         # Bar forces (scalars)
-#			Fvec = F[:,None]/L[:,None].dot([[1,1]])*barvec # Bar forces (x,y components)
-#			Ftot = ml.dense(bars[:,[0,0,1,1]],
-#											np.repeat([[0,1,0,1]], len(F), axis=0),
-#											np.hstack((Fvec, -Fvec)),
-#											shape=(N, 2))
-#			Ftot[:nfix] = 0                              # Force = 0 at fixed points
-#			self.p += deltat*Ftot                             # Update node positions
-#		
-#			d = fd(p); ix = d>0                          # Find points outside (d>0)
-#			ddeps = 1e-1
-#			for idx in range(10):
-#				if ix.any():
-#					dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
-#					dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/ddeps # gradient
-#					dgrad2 = dgradx**2 + dgrady**2
-#					p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project	
-#
-#		self.bars = bars
-#		self.L = L 
+	def size(self):
+		return self.N
