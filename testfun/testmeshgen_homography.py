@@ -15,8 +15,8 @@ from distmesh_dyn import *
 ################################################################################
 
 threshold = 7
-fn = "./video/local_prop_cb_with_bud.avi"
-fn_out = './video/local_pro_cb_with_bud_sparseflow_grid.avi'
+fn = "./video/GCaMP_local_prop.avi"
+fn_out = './video/GCaMP_local_prop_grid.avi'
 lk_params = dict( winSize  = (19, 19),
 				  maxLevel = 2,
 				  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
