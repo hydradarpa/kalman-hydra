@@ -5,15 +5,9 @@
 #lansdell. Feb 9th 2016
 
 import numpy as np
-import cv2
-import distmesh as dm 
-import scipy.spatial as spspatial
-import distmesh.mlcompat as ml
-import distmesh.utils as dmutils
 
-from imgproc import * 
-from distmesh_dyn import *
-from renderer import *
+from distmesh_dyn import DistMesh
+from renderer import Renderer
 
 class KFState:
 	def __init__(self, distmesh, im, eps_Q = 1, eps_R = 1):
@@ -21,13 +15,12 @@ class KFState:
 		self._ver = np.array(distmesh.p, np.float32)
 
 		#self._vel = np.zeros(self._ver.shape, np.float32)
-		#For testing, we'll give some initial velocity
+		#For testing we'll give some initial velocity
 		self._vel = np.ones(self._ver.shape, np.float32)
 
-		#Set up initial guess for textures and covariance matrix
+		#Set up initial guess for texture
 		self.tex = im
 		self.nx = im.shape[0]
-		self.c_tex = np.ones(im.shape)
 
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
@@ -62,9 +55,9 @@ class KFState:
 
 	def render(self):
 		self.renderer.on_draw(None)
-		im = self.renderer.get_buffers()
+		#im = self.renderer.get_buffers()
 		#return image and flow buffers
-		return im
+		#return im
 
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))
@@ -78,9 +71,9 @@ class KalmanFilter:
 		self.N = distmesh.size()
 		self.state = KFState(distmesh, im)
 
-	def compute(self, z_im, z_flow):
+	def compute(self, y_im, y_flow):
 		self.predict()
-		self.update(z_im, z_flow)
+		self.update(y_im, y_flow)
 
 	def predict(self):
 		X = self.state.X 
@@ -91,9 +84,9 @@ class KalmanFilter:
 		self.state.X = F*X
 		self.state.P = F*P*F.T + Q 
 
-	def update(self, z_im, z_flow):
+	def update(self, y_im, y_flow):
 		#im, flow = self.observation()
-		im = self.observation()
+		y_tilde = self.observation()
 		P = self.state.P 
 		R = self.state.R 
 		X = self.state.X 
@@ -104,7 +97,7 @@ class KalmanFilter:
 		#y_tilde_f = z_flow - flow;
 		#y_tilde = np.vstack((y_tilde_i.reshape((1,-1)), y_tilde_f.reshape((1,-1))))
 		#S = H*P*H.T + R
-		#Sinv = np.linalg.inv(S)				#(expensive)
+		#Sinv = np.linalg.inv(S)
 		#K = P*H.T*Sinv 
 		#self.state.P = (I - K*H)*P 
 		#self.state.X = X + K*y_tilde  

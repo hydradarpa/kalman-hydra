@@ -7,6 +7,8 @@
 import numpy as np 
 from vispy import gloo
 from vispy import app
+from imgproc import findObjectThreshold
+import cv2 
 
 VERT_SHADER = """ // simple vertex shader
 
@@ -114,16 +116,20 @@ class Renderer(app.Canvas):
 		gloo.set_viewport(0, 0, width, height)
 
 	def on_draw(self, event):
-		gloo.clear()
 		#Render the current positions to FBO1 
+		gloo.clear()
 		with self._fbo1:
+
 			self._program.draw('triangles', self.indices_buffer)
 		#Render the current velocities to FBO2
+		gloo.clear()
 		with self._fbo2:
 			self._program_flowx.draw('triangles', self.indices_buffer)
+		gloo.clear()
 		with self._fbo3:
 			self._program_flowy.draw('triangles', self.indices_buffer)
 
+		gloo.clear()
 		#Summary render to main screen
 		if self.state == 'texture':
 			self._program.draw('triangles', self.indices_buffer)
@@ -192,6 +198,53 @@ class Renderer(app.Canvas):
 		outline_buffer = gloo.IndexBuffer(outline)
 		return indices_buffer, outline_buffer, vertex_data
 
-	def get_buffers(self):
-		im = gloo.wrappers.read_pixels(viewport=None, alpha=True)
-		return im
+	def update_frame(self, im1, flowx, flowy):
+		return None 
+
+class VideoStream:
+	def __init__(self, fn, threshold):
+		self.threshold = threshold
+		self.cap = cv2.VideoCapture(fn)
+		ret, frame = self.cap.read()
+		assert ret, "Cannot open %s" % fn 
+		nx,ny = frame.shape[0:2]
+		self.nx = nx 
+		self.ny = ny
+		self.frame = frame
+		self.frame_orig = frame.copy()
+		self.grayframe = cv2.cvtColor(self.frame,cv2.COLOR_BGR2GRAY)
+
+	def next(self, backsub = False):
+		ret, frame = self.cap.read()
+		self.frame = frame 
+		self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+		if not backsub:
+			return ret, self.frame, self.grayframe
+		else:
+			(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)
+			#Apply mask
+			backframe = np.multiply(np.dstack((mask, mask, mask)), frame)
+			backgrayframe = np.multiply(mask, self.grayframe)		
+			return ret, backframe, backgrayframe 
+
+	def current_frame(self):
+		return self.frame 
+
+	def gray_frame(self):
+		return self.grayframe 
+
+	def backsub(self, im = None):
+		(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)
+		if im is None:
+			return mask, ctrs, fd
+		else:
+			if len(im.shape) == 2:
+				return np.multiply(mask, im)
+			#Probably a better way to do this...
+			elif im.shape[2] == 2:
+				return np.multiply(np.dstack((mask, mask)), im)
+			elif im.shape[2] == 3:
+				return np.multiply(np.dstack((mask, mask, mask)), im)
+
+	def isOpened(self):
+		return self.cap.isOpened()

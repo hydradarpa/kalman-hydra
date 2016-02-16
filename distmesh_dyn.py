@@ -5,15 +5,15 @@ import scipy.spatial as spspatial
 import distmesh.mlcompat as ml
 import distmesh.utils as dmutils
 
-from imgproc import * 
+from imgproc import drawGrid
 
 class DistMesh:
-	def __init__(self, frame_orig, h0 = 35, dptol = 0.01):
+	def __init__(self, frame, h0 = 35, dptol = 0.01):
 		self.dptol = dptol
 		self.h0 = h0
 		self.N = 0
 		self.fh = dm.huniform; 
-		nx,ny = np.shape(frame_orig)[0:2]
+		nx,ny = np.shape(frame)[0:2]
 		self.nx = nx
 		self.ny = ny
 		self.bbox = (0, 0, ny, nx)
@@ -29,7 +29,7 @@ class DistMesh:
 		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
 		self.F = lambda L: -self.k*(L-h0)
 
-	def createMesh(self, ctrs, fd, frame_orig, plot = False):
+	def createMesh(self, ctrs, fd, frame, plot = False):
 		pfix = None 
 	
 		# Extract bounding box
@@ -64,7 +64,7 @@ class DistMesh:
 		#Mesh creation
 		################################################################################
 		
-		while count < self.maxiter:
+		while count < self.maxiter: 
 			print count 
 			count += 1
 			# 3. Retriangulation by the Delaunay algorithm
@@ -81,10 +81,8 @@ class DistMesh:
 									t[:, [2,0]]))          # Interior bars duplicated
 				bars.sort(axis=1)
 				bars = ml.unique_rows(bars)              # Bars as node pairs
-				#Plot:
-				if frame_orig is not None:
-					frame = frame_orig.copy()
-					#drawPoints(frame, p)
+				#Plot
+				if frame is not None:
 					drawGrid(frame, p, bars)
 					if plot:
 						cv2.imshow('frame',frame)
