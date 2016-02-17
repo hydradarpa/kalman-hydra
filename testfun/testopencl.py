@@ -34,7 +34,7 @@ def clinit():
     else:
         c = [(cl.context_properties.PLATFORM, plats[0])] + get_gl_sharing_context_properties()
         #c = [get_gl_sharing_context_properties()[1]]
-        #c = [(cl.context_properties.PLATFORM, plats[0])]
+        c = [(cl.context_properties.PLATFORM, plats[0])]
         ctx = cl.Context(properties=c, devices=None)
     queue = cl.CommandQueue(ctx)
     return ctx, queue

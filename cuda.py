@@ -9,27 +9,80 @@ import sys, time, os
 import pycuda.driver as cuda_driver
 import pycuda.gl as cuda_gl
 import pycuda
-#import pycuda.gl.autoinit
 from pycuda.compiler import SourceModule
 
-class CUDA:
-	def __init__(self):
+class CUDAGL:
+	def __init__(self, texture):
+
+		self.imWidth = pixels.shape[0]
+		self.imHeight = pixels.shape[1]
 		if pycuda.VERSION[0] >= 2011:
 			self.ver2011 = True
-	#Store texture
+		#Format pixel data as array... is this needed?
+		self.pixels = pixels
+		self.array = cuda_driver.matrix_to_array(pixels, "C") # C-style instead of Fortran-style: row-major
+		self.pixels.fill(0) # Resetting the array to 0	
+		#Create PBO
+		self.pbo_buffer = glGenBuffers(1) # generate 1 buffer reference
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbo_buffer) # binding to this buffer
 
-	#Store 
+		#Init taken from
+		#http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
+		self.usage = usage
+		if isinstance(size, tuple):
+			size = size[0] * size[1] * self.imageformat.planecount
+		bytesize = self.imageformat.get_bytesize_per_plane() * size
+		glBindBuffer(self.arraytype, self.id)
+		glBufferData(self.arraytype, bytesize, None, self.usage)
+		glBindBuffer(self.arraytype, 0)
 
-	def copy2D_array_to_device(dst, src, type_sz, width, height):
-		copy = cuda_driver.Memcpy2D()
-		copy.set_src_array(src)
-		copy.set_dst_device(dst)
-		copy.height = height
-		copy.dst_pitch = copy.src_pitch = copy.width_in_bytes = width*type_sz
-		copy(aligned=True)
+		#Unpack pixels to PBO
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, self.imWidth*self.imHeight, self.pixels, GL_STREAM_DRAW) # Allocate the buffer
+		bsize = glGetBufferParameteriv(GL_PIXEL_UNPACK_BUFFER, GL_BUFFER_SIZE) # Check allocated buffer size
+		assert(bsize == self.imWidth*self.imHeight)
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0) # Unbind
+		#Register PBO with CUDA
+		if ver2011:
+			self.cuda_pbo_resource = pycuda.gl.RegisteredBuffer(int(self.pbo_buffer), cuda_gl.graphics_map_flags.WRITE_DISCARD)
+		else:
+			self.cuda_pbo_resource = cuda_gl.BufferObject(int(self.pbo_buffer)) # Mapping GLBuffer to cuda_resource
+		
+		#Not sure what this does...
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1) # 1-byte row alignment
+		glPixelStorei(GL_PACK_ALIGNMENT, 1) # 1-byte row alignment        
+
+	def z(self, y_texture, y_im, eps_R):
+		#Unpack texture to PBO
+		bytesize = (self.size[0] * self.size[1] *
+					self.imageformat.planecount *
+					self.imageformat.get_bytesize_per_plane())
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, self.id)
+		glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
+					bytesize,
+					None, self.usage)
+		glEnable(texture.target)
+		glActiveTexture(GL_TEXTURE0_ARB)
+		glBindTexture(texture.target, texture.id)
+		OpenGL.raw.GL.glGetTexImage(texture.target, 0, texture.gl_imageformat,
+									texture.gl_dtype, ctypes.c_void_p(0))
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(texture.target)
+
+
+		#Map PBO to CUDA
+
+		#Run CUDA zscore
+		#CUDA: 
+		#Subtract one from the other
+		#Add noise of std eps_R to difference
+		#Compute ssr of two images
+		#normalize by variance (eps_R^2)
+
+		#Unmap CUDA PBO
+
+		return 0 
 
 	def sobelFilter(odata, iw, ih):
-		global array, pixels, mode, scale
 		# Texture and shared memory with fixed BlockSize
 		sm = SourceModule("""
 			texture<unsigned char, 2> tex;
@@ -148,31 +201,3 @@ class CUDA:
 		sharedMem = SharedPitch*(threads[1]+2*RADIUS);
 		iw = iw & ~3
 		cuda_function(np.intp(odata), np.uint16(iw), np.int16(iw), np.int16(ih), np.float32(scale), texrefs=[texref],block=threads, grid=blocks, shared=sharedMem)
-
-	def initData(fn=None):
-		global pixels, array, pbo_buffer, cuda_pbo_resource, imWidth, imHeight, texid
-	
-		# Cuda array initialization
-		array = cuda_driver.matrix_to_array(pixels, "C") # C-style instead of Fortran-style: row-major
-	
-		pixels.fill(0) # Resetting the array to 0
-	
-		pbo_buffer = glGenBuffers(1) # generate 1 buffer reference
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_buffer) # binding to this buffer
-		glBufferData(GL_PIXEL_UNPACK_BUFFER, imWidth*imHeight, pixels, GL_STREAM_DRAW) # Allocate the buffer
-		bsize = glGetBufferParameteriv(GL_PIXEL_UNPACK_BUFFER, GL_BUFFER_SIZE) # Check allocated buffer size
-		assert(bsize == imWidth*imHeight)
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0) # Unbind
-	
-		if ver2011:
-			cuda_pbo_resource = pycuda.gl.RegisteredBuffer(int(pbo_buffer), cuda_gl.graphics_map_flags.WRITE_DISCARD)
-		else:
-			cuda_pbo_resource = cuda_gl.BufferObject(int(pbo_buffer)) # Mapping GLBuffer to cuda_resource
-	
-		glGenTextures(1, texid); # generate 1 texture reference
-		glBindTexture(GL_TEXTURE_2D, texid); # binding to this texture
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, imWidth, imHeight,  0, GL_LUMINANCE, GL_UNSIGNED_BYTE, None); # Allocate the texture
-		glBindTexture(GL_TEXTURE_2D, 0) # Unbind
-	
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1) # 1-byte row alignment
-		glPixelStorei(GL_PACK_ALIGNMENT, 1) # 1-byte row alignment        

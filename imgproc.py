@@ -11,6 +11,26 @@ from functions.common import draw_str
 
 from matplotlib import pyplot as plt
 
+#From http://www.pyimagesearch.com/2015/08/10/checking-your-opencv-version-using-python/
+def is_cv2():
+    # if we are using OpenCV 2, then our cv2.__version__ will start
+    # with '2.'
+    return check_opencv_version("2.")
+ 
+def is_cv3():
+    # if we are using OpenCV 3.X, then our cv2.__version__ will start
+    # with '3.'
+    return check_opencv_version("3.")
+ 
+def check_opencv_version(major, lib=None):
+    # if the supplied library is None, import OpenCV
+    if lib is None:
+        import cv2 as lib
+        
+    # return whether or not the current OpenCV version matches the
+    # major version number
+    return lib.__version__.startswith(major)
+
 class Contours:
 	def __init__(self, contours, hierarchy = None):
 		self.contours = contours
@@ -176,7 +196,10 @@ def findObjectThreshold(img, threshold = 7):
 	mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
 
 	#Find contours of mask
-	im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
+	if is_cv3():
+		im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
+	else:
+		c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
 	ctrs = Contours(c, h)
 	
 	#Remove contours that are smaller than 40 square pixels, or that are above

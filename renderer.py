@@ -10,6 +10,8 @@ from vispy import app
 from imgproc import findObjectThreshold
 import cv2 
 
+from cuda import CUDAGL 
+
 VERT_SHADER = """ // simple vertex shader
 
 attribute vec3 a_position;
@@ -107,6 +109,8 @@ class Renderer(app.Canvas):
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
 
+		self.cudagl = CUDAGL(self._rendertex1)
+
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
@@ -198,11 +202,13 @@ class Renderer(app.Canvas):
 		outline_buffer = gloo.IndexBuffer(outline)
 		return indices_buffer, outline_buffer, vertex_data
 
-	def update_frame(self, im1, flowx, flowy):
-		return None 
+	def z(self, y_im, eps_R):
+		return self.cudagl.z(self._rendertex1, y_im, eps_R)
 
 class VideoStream:
 	def __init__(self, fn, threshold):
+		print("Creating video stream from " + fn)
+		print("Background subtraction below intensity " + str(threshold))
 		self.threshold = threshold
 		self.cap = cv2.VideoCapture(fn)
 		ret, frame = self.cap.read()
@@ -214,7 +220,7 @@ class VideoStream:
 		self.frame_orig = frame.copy()
 		self.grayframe = cv2.cvtColor(self.frame,cv2.COLOR_BGR2GRAY)
 
-	def next(self, backsub = False):
+	def read(self, backsub = True):
 		ret, frame = self.cap.read()
 		self.frame = frame 
 		self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
@@ -223,15 +229,25 @@ class VideoStream:
 		else:
 			(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)
 			#Apply mask
-			backframe = np.multiply(np.dstack((mask, mask, mask)), frame)
+			backframe = np.multiply(np.dstack((mask, mask, mask)), self.frame)
 			backgrayframe = np.multiply(mask, self.grayframe)		
 			return ret, backframe, backgrayframe 
 
-	def current_frame(self):
-		return self.frame 
+	def current_frame(self, backsub = True):
+		if backsub:
+			(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)
+			frame = np.multiply(np.dstack((mask, mask, mask)), self.frame)
+		else:
+			frame = self.frame 
+		return frame 
 
-	def gray_frame(self):
-		return self.grayframe 
+	def gray_frame(self, backsub = True):
+		if backsub:
+			(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)
+			frame = np.multiply(mask, self.grayframe)
+		else:
+			frame = self.grayframe 
+		return frame 
 
 	def backsub(self, im = None):
 		(mask, ctrs, fd) = findObjectThreshold(self.frame, threshold = self.threshold)

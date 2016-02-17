@@ -10,7 +10,7 @@ from distmesh_dyn import DistMesh
 from renderer import Renderer
 
 class KFState:
-	def __init__(self, distmesh, im, eps_Q = 1, eps_R = 1):
+	def __init__(self, distmesh, im, eps_Q = 1, eps_R = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 
@@ -21,6 +21,13 @@ class KFState:
 		#Set up initial guess for texture
 		self.tex = im
 		self.nx = im.shape[0]
+		self.ny = im.shape[1]
+		self.M = self.nx*self.ny
+
+		#Number of 'observations'
+		self.NZ = 1
+		self.eps_Q = eps_Q
+		self.eps_R = eps_R
 
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
@@ -42,22 +49,21 @@ class KFState:
 		e = np.eye(2*self.N)
 		z = np.zeros((2*self.N,2*self.N))
 		self.F = np.bmat([[e, e], [z, e]])
-		self.Q = eps_Q * np.eye(self._vel.shape[0]*4)
-		self.R = eps_R * np.ones(im.shape)
+		self.Q = eps_Q * np.bmat([[e/4, e/2], [e/2, e]])
+		self.R = eps_R * np.ones((self.NZ,self.NZ))
 		self.P = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, self.nx, im)
-		app.run()
+
+	def size(self):
+		return self.X.shape[0]
 
 	def refresh(self):
 		self.renderer.update_vertex_buffer(self.vertices(), self.velocities())
 
 	def render(self):
 		self.renderer.on_draw(None)
-		#im = self.renderer.get_buffers()
-		#return image and flow buffers
-		#return im
 
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))
@@ -65,17 +71,21 @@ class KFState:
 	def velocities(self):
 		return self.X[(2*self.N):].reshape((-1,2))
 
+	def z(self, y):
+		return self.renderer.z(y, self.eps_R)
+
 class KalmanFilter:
 	def __init__(self, distmesh, im):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		self.state = KFState(distmesh, im)
 
-	def compute(self, y_im, y_flow):
+	def compute(self, y_im, y_flow = None):
 		self.predict()
-		self.update(y_im, y_flow)
+		self.update(y_im, y_flow = None)
 
 	def predict(self):
+		print 'Predicting'
 		X = self.state.X 
 		F = self.state.F 
 		Q = self.state.Q
@@ -84,27 +94,50 @@ class KalmanFilter:
 		self.state.X = F*X
 		self.state.P = F*P*F.T + Q 
 
-	def update(self, y_im, y_flow):
-		#im, flow = self.observation()
-		y_tilde = self.observation()
-		P = self.state.P 
-		R = self.state.R 
-		X = self.state.X 
-		H = self.linearize_obs()			#(expensive)
+	def size(self):
+		#State space size
+		return self.N*4
+
+	def update(self, y_im, y_flow = None):
+		print 'Updating'
+		z_tilde = self.observation(y_im)
+		X = self.state.X
+		P = self.state.P
+		R = self.state.R
+		H = self.linearize_obs(z_tilde, y_im)
+		M = self.state.M
+		I = np.eye(P.shape[0])
 
 		##Update equations 
-		#y_tilde_i = z_im - im; 
-		#y_tilde_f = z_flow - flow;
-		#y_tilde = np.vstack((y_tilde_i.reshape((1,-1)), y_tilde_f.reshape((1,-1))))
-		#S = H*P*H.T + R
-		#Sinv = np.linalg.inv(S)
-		#K = P*H.T*Sinv 
-		#self.state.P = (I - K*H)*P 
-		#self.state.X = X + K*y_tilde  
+		S = H*P*H.T + R
+		Sinv = np.linalg.inv(S)
+		K = P*H.T*Sinv 
+		self.state.P = (I - K*H)*P 
+		self.state.X = X + K*(z_tilde - M)
 
-	def observation(self):
+	def observation(self, y_im):
 		self.state.refresh()
-		return self.state.render()
+		self.state.render()
+		return self.state.z(y_im)
 
-	def linearize_obs(self):
-		return None
+	def linearize_obs(self, z_tilde, y_im, deltaX = 3):
+		print 'Linearizing z(x) around current estimate'
+		H = np.zeros((1, self.size()))
+		Xorig = self.state.X.copy()
+		#print self.state.X.shape 
+		for idx in range(self.state.N*2):
+			#Perturb positions
+			self.state.X[idx,0] += deltaX
+			#Update and render
+			zp = self.observation(y_im)
+			#Record change in z_tilde given change in position
+			H[0,idx] = (z_tilde - zp)/deltaX
+			self.state.X = Xorig.copy()
+
+		#We don't need to perturb the velocities, since we assume that we don't
+		#observe them (yet), thus any perturbation will have no effect on z,
+		#thus this part of H stays zero
+
+		return H
+
+

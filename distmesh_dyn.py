@@ -82,10 +82,11 @@ class DistMesh:
 				bars.sort(axis=1)
 				bars = ml.unique_rows(bars)              # Bars as node pairs
 				#Plot
+				fc = frame.copy()
 				if frame is not None:
-					drawGrid(frame, p, bars)
+					drawGrid(fc, p, bars)
 					if plot:
-						cv2.imshow('frame',frame)
+						cv2.imshow('Initial mesh',fc)
 						k = cv2.waitKey(30) & 0xff
 						if k == 27:
 							break
