@@ -189,7 +189,10 @@ def findObjectThreshold(img, threshold = 7):
 	#img = cv2.imread('./video/testcontours.jpg')
 
 	#Just try simple thresholding instead: (quick!, seems to work fine)
-	frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	if len(img.shape) == 3:
+		frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	else:
+		frame_gray = img 
 
 	#Global threshold
 	ret1, mask = cv2.threshold(frame_gray, threshold, 255, cv2.THRESH_TOZERO)

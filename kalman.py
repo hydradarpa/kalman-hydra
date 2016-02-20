@@ -150,12 +150,13 @@ class KalmanFilter:
 		return H
 
 def test_data(nx, ny):
-	nframes = 3
-	video = np.zeros((nx, ny, nframes))
+	nframes = 10
+	speed = 3
+	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
 	im = np.zeros((nx, ny))
 	#Set up a box in the first frame, with some basic changes in intensity
-	start = floor(nx/3)
-	end = floor(2*nx/3)
+	start = nx//3
+	end = 2*nx//3
 	for i in range(start,end):
 		for j in range(start,end):
 			if i > j:
@@ -165,6 +166,9 @@ def test_data(nx, ny):
 			im[i,j] = col
 	#Translate the box for a few frames
 	for i in range(nframes):
-		imtrans = im[i:,i:]
-		video[:-i,:-i,i] = imtrans 
+		imtrans = im[speed*i:,speed*i:]
+		if i > 0:
+			video[:-speed*i,:-speed*i,i] = imtrans 
+		else:
+			video[:,:,i] = imtrans
 	return video 

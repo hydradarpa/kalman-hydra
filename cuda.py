@@ -165,8 +165,8 @@ class CUDAGL:
 		else:
 			diff = y_tilde[:,:,0]-y_im
 
-		diff = diff + np.random.normal(size = diff.shape)*self.eps_R
-		z = np.sum(np.multiply(diff, diff)/256./256./self.eps_R/self.eps_R)
+		diff = diff# + np.random.normal(size = diff.shape)*self.eps_R
+		z = np.sum(np.multiply(diff, diff)/256./256)#./self.eps_R/self.eps_R)
 		#print z 
 		#input()
 		return z
