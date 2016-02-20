@@ -25,13 +25,14 @@ class KFState:
 		self.tex = im
 		self.nx = im.shape[0]
 		self.ny = im.shape[1]
-		#self.M = self.nx*self.ny
+		self.M = self.nx*self.ny
 
 		#Number of 'observations'
-		self.NZ = 1
+		self.NZ = 1000
 		self.eps_Q = eps_Q
 		self.eps_R = eps_R
 
+		self.Rp = np.zeros((self.NZ, self.M))
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
 		self.N = distmesh.size()
@@ -75,7 +76,7 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 	def z(self, y):
-		return self.renderer.z(y)
+		return self.renderer.z(y, self.Rp)
 
 class KalmanFilter:
 	def __init__(self, distmesh, im, cuda):
@@ -83,7 +84,6 @@ class KalmanFilter:
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, cuda)
-		self.state.M = self.observation(im)
 		print self.state.M 
 
 	def compute(self, y_im, y_flow = None):
@@ -105,26 +105,32 @@ class KalmanFilter:
 		#State space size
 		return self.N*4
 
+	def Rp(self):
+		a = np.random.normal(size = (self.state.NZ, self.state.M))
+		ni = 1/np.linalg.norm(a, axis=1)
+		an = (a.T*ni).T
+		return an
+
 	def update(self, y_im, y_flow = None):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
-		z_tilde = self.observation(y_im)
-		print 'z = %f' % z_tilde 
 		print 'Updating'
+		#Update a random projection matrix 
+		self.state.Rp = self.Rp()
+		z_res = self.observation(y_im)
 		X = self.state.X
 		P = self.state.P
 		R = self.state.R
-		H = self.linearize_obs(z_tilde, y_im)
-		M = self.state.M
+		H = self.linearize_obs(z_res, y_im)
 		I = np.eye(P.shape[0])
 
 		##Update equations 
 		S = H*P*H.T + R
-		print S.shape 
+		#print S.shape 
 		Sinv = np.linalg.inv(S)
 		K = P*H.T*Sinv 
 		self.state.P = (I - K*H)*P 
-		self.state.X = X + K*(z_tilde - M)
+		self.state.X = X + K*z_res
 
 	def observation(self, y_im):
 		self.state.refresh()
@@ -133,7 +139,7 @@ class KalmanFilter:
 
 	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
 		print 'Linearizing z(x) around current estimate'
-		H = np.zeros((1, self.size()))
+		H = np.zeros((self.state.NZ, self.size()))
 		Xorig = self.state.X.copy()
 		#print self.state.X.shape 
 		for idx in range(self.state.N*2):
@@ -142,13 +148,13 @@ class KalmanFilter:
 			#Update and render
 			zp = self.observation(y_im)
 
-			self.state.X[idx,0] -= 2*deltaX
+			#self.state.X[idx,0] -= 2*deltaX
 			#Update and render
-			zp2 = self.observation(y_im)
+			#zp2 = self.observation(y_im)
 
 			#Record change in z_tilde given change in position
-			H[0,idx] = (zp2 - zp)/deltaX/2
-			#H[0,idx] = (z_tilde - zp)/deltaX
+			#H[0,idx] = (zp2 - zp)/deltaX/2
+			H[:,idx] = -(zp-z_tilde)[:,0]/deltaX
 			self.state.X = Xorig.copy()
 
 		#We don't need to perturb the velocities, since we assume that we don't

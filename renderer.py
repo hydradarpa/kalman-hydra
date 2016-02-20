@@ -259,9 +259,9 @@ class Renderer(app.Canvas):
 		self.current_frame = y_im 
 		self.current_texture = gloo.Texture2D(y_im)
 
-	def z(self, y_im):
+	def z(self, y_im, R):
 		#return self.cudagl.z(y_im)
-		return self.cudagl.z_CPU(y_im)
+		return self.cudagl.z_CPU(y_im, R)
 
 
 class VideoStream:

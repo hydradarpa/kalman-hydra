@@ -145,28 +145,13 @@ class CUDAGL:
 		return 0
 
 	#Test code on the CPU
-	def z_CPU(self, y_im):
+	def z_CPU(self, y_im, R):
 		#Copy y_tilde pixels to CPU memory
 		with self._fbo1:
 			y_tilde = gloo.read_pixels()
-			#Not sure why I can't get this one to work...
-			#y_tilde = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
-			#y_tilde = glReadPixels(0, 0, self.width, self.height, GL_RGB, GL_UNSIGNED_BYTE)
-			#y_tilde = np.fromstring(y_tilde, dtype=np.uint8).reshape((self.width, self.height, 3))
-		#print y_tilde.shape 
-		#plt.imshow(y_im-y_tilde[:,:,0]>0),plt.colorbar(),plt.show()
-		#cv2.imshow('',y_im)
-		#k = cv2.waitKey(30) & 0xff
-		#import rpdb2 
-		#rpdb2.start_embedded_debugger("asdf")
-		#so much simpler...
 		if len(y_im.shape) == 3:
 			diff = y_tilde[:,:,0]-y_im[:,:,0]
 		else:
 			diff = y_tilde[:,:,0]-y_im
-
-		diff = diff# + np.random.normal(size = diff.shape)*self.eps_R
-		z = np.sum(np.multiply(diff, diff)/256./256)#./self.eps_R/self.eps_R)
-		#print z 
-		#input()
+		z = -np.dot(R,diff.reshape((-1,1)))
 		return z
