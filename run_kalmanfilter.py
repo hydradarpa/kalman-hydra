@@ -4,6 +4,8 @@ from kalman import KalmanFilter
 from renderer import VideoStream
 from distmesh_dyn import DistMesh
 
+import pdb 
+
 def main():
 	usage = """run_kalmanfilter.py [input_avi_file] [output_avi_file] [threshold]
 
@@ -32,7 +34,7 @@ Ben Lansdell
 		help='avi output video file', nargs='?')
 	parser.add_argument('-t', '--threshold', default=9,
 		help='Threshold intensity below which is background', type = int)
-	parser.add_argument('-h', '--gridsize', default=35,
+	parser.add_argument('-s', '--gridsize', default=15,
 		help='Edge length for mesh (smaller is finer)', type = int)
 	args = parser.parse_args()
 
@@ -51,13 +53,23 @@ Ben Lansdell
 
 	kf = KalmanFilter(distmesh, frame)
 	kf.compute(capture.gray_frame(), flowframe)
-	
-	#while(capture.isOpened()):
-	#	ret, frame, grayframe = capture.read()
+
+
+
+	nI = 3
+	count = 0
+	while(capture.isOpened()):
+		count += 1
+		print 'Frame %d' % count 
+		ret, frame, grayframe = capture.read()
 	#	flowframe = capture.backsub(hdf.read())
-	#	if ret == False:
-	#		break 
-	#	kf.compute(grayframe, flowframe)
+		if ret == False:
+			break 
+		for i in range(nI):
+			print 'Iteration %d' % i 
+			raw_input("Finished. Press Enter to continue")
+			kf.compute(grayframe, flowframe)
+		#kf.compute(grayframe, flowframe)
 	
 	#capture.release()
 	#output.release()

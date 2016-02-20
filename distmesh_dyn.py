@@ -65,7 +65,7 @@ class DistMesh:
 		################################################################################
 		
 		while count < self.maxiter: 
-			print count 
+			#print count 
 			count += 1
 			# 3. Retriangulation by the Delaunay algorithm
 			dist = lambda p1, p2: np.sqrt(((p1-p2)**2).sum(1))

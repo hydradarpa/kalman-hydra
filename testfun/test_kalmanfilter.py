@@ -1,143 +1,97 @@
-import numpy as np
-import cv2
-import scipy.spatial as spspatial
-import distmesh as dm 
-import distmesh.mlcompat as ml
-import distmesh.utils as dmutils
-import time 
-from matplotlib import pyplot as plt
+#!/usr/bin/env python
+import sys, argparse 
+from kalman import KalmanFilter, KFState
+from renderer import *
+from cuda import *
+from distmesh_dyn import DistMesh
+import numpy as np 
 
-from kalman import *
-from imgproc import * 
-from distmesh_dyn import *
-
-################################################################################
-#Parameters
-################################################################################
-
+fn_in ='./video/GCaMP_local_prop.avi'
 threshold = 9
-fn = "./video/GCaMP_local_prop.avi"
-fn_out = './video/GCaMP_local_prop_grid.avi'
-lk_params = dict( winSize  = (19, 19),
-				  maxLevel = 2,
-				  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
-feature_params = dict( maxCorners = 1000,
-					   qualityLevel = 0.01,
-					   minDistance = 8,
-					   blockSize = 19 )
 
-################################################################################
-#Set up object
-################################################################################
-
-cap = cv2.VideoCapture(fn)
-ret, frame = cap.read()
-frame_orig = frame.copy()
-(mask, ctrs, fd) = findObjectThreshold(frame, threshold = threshold)
-ofLK = OpticalFlowLK(cap, lk_params, feature_params)
-
-nx,ny = frame.shape[0:2]
-
-#Show the outline
-cv2.drawContours(frame, ctrs.contours, -1, (0,255,0), 1)
-cv2.imshow('frame',frame)
-k = cv2.waitKey(30) & 0xff
-
-fps = 20.0
-#framesize = np.shape(frame)[0:2]
-#framesize = framesize[::-1]
-#fourcc = cv2.VideoWriter_fourcc(*'MP4V') 
-#output = cv2.VideoWriter(fn_out,fourcc, fps, framesize)
-
-################################################################################
-#Mesh creation
-################################################################################
-
+capture = VideoStream(fn_in, threshold)
+frame = capture.current_frame(backsub = True)
+mask, ctrs, fd = capture.backsub()
 distmesh = DistMesh(frame)
-distmesh.createMesh(ctrs, fd, frame_orig, True)
+distmesh.createMesh(ctrs, fd, frame, True)
 
-prvs = cv2.cvtColor(frame_orig,cv2.COLOR_BGR2GRAY)
-kf = KalmanFilter(distmesh, prvs)
+flowframe = None #capture.backsub(hdf.read())
 
-kf.compute()
+#Create KalmanFilter object one step at a time (kf = KalmanFilter(distmesh, frame))
 
-################################################################################
-#Main loop
-################################################################################
+#Create KFState object (KFState.__init__)
+im = frame 
+nx = im.shape[0]
+eps_Q = 1
+eps_R = 1e-3
+_ver = np.array(distmesh.p, np.float32)
+_vel = np.ones(_ver.shape, np.float32)
 
-while(cap.isOpened()):
-	ret, frame2 = cap.read()
-	if ret == False:
-		break 
-	next = cv2.cvtColor(frame2,cv2.COLOR_BGR2GRAY)
+#Create renderer (renderer = Renderer(distmesh, _vel, nx, im))
+##############################################################
+state = 'texture'
+title = 'Hydra tracker. Displaying %s state (space to toggle)' % state
+app.Canvas.__init__(self, keys='interactive', title = title)
+indices_buffer, outline_buffer, vertex_data = loadMesh(distmesh.p, vel, distmesh.t, nx)
+_vbo = gloo.VertexBuffer(vertex_data)
 
-	#Interpolate from sparse optic flow, using findHomography example:
-	#Get sparse optic flow of a set of points with each frame
+#Setup programs
+_program = gloo.Program(VERT_SHADER, FRAG_SHADER)
+_program['texture1'] = gloo.Texture2D(im1)
+_program.bind(_vbo)
+_program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
+_program_lines['u_color'] = 1, 1, 0, 1
+_program_lines.bind(_vbo)
+_program_flowx = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWX)
+_program_flowx['u_color'] = 1, 0, 0, 1
+_program_flowx.bind(_vbo)
+_program_flowy = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWY)
+_program_flowy['u_color'] = 1, 0, 0, 1
+_program_flowy.bind(_vbo)
+_program_flow = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOW)
+_program_flow['u_color'] = 0, 1, 0, 1
+_program_flow.bind(_vbo)
 
-	#oft = time.time() 
-	flowimg = ofLK.run(next, prvs, frame2)
-	p0LK = ofLK.p0 
-	p1LK = ofLK.p1
-	flow = p1LK - p0LK
-	#opticflowtime += time.time() - oft 
+#Create FBOs, attach the color buffer and depth buffer
+shape = (nx, nx)
+_rendertex1 = gloo.Texture2D((shape + (3,)))
+_rendertex2 = gloo.Texture2D((shape + (3,)))
+_rendertex3 = gloo.Texture2D((shape + (3,)))
+_fbo1 = gloo.FrameBuffer(_rendertex1, gloo.RenderBuffer(shape))
+_fbo2 = gloo.FrameBuffer(_rendertex2, gloo.RenderBuffer(shape))
+_fbo3 = gloo.FrameBuffer(_rendertex3, gloo.RenderBuffer(shape))
 
-	#fst = time.time() 
-	##Use these points to shift around adjacent points:
-	nmvp = np.zeros((np.shape(distmesh.p)[0],1))
-	mvp = np.zeros((np.shape(distmesh.p)))
-	#Only look at points that are within boundary
-	fdp1 = fd(p1LK[:,0,:])
-	inbdry = fdp1 < 0 
+gloo.set_clear_color('black')
+_timer = app.Timer('auto', connect=update, start=True)
+show()
+#CUDAGL.__init__(cudagl = CUDAGL(_rendertex1))
 
-	#Find points adjacent to each tracked point
-	for tpt, tflow in zip(p0LK[inbdry,0,:], flow[inbdry,0,:]):
-		simpidx = distmesh.delaunay.find_simplex(tpt)
-		simp = distmesh.delaunay.vertices[simpidx]
-		nmvp[simp] += 1 
-		mvp[simp] += tflow
+texture = _rendertex1
+eps_R = eps_R
+width = texture.shape[0]
+height = texture.shape[1]
+size = texture.shape
 
-	#For each point, take the average motion (if adjacent to more than one
-	#tracked point)
-	moved = nmvp > 0 
-	mvp[moved[:,0]] = np.divide(mvp[moved[:,0]], np.hstack((nmvp[moved,np.newaxis], nmvp[moved,np.newaxis])))
-	distmesh.p += mvp
+import pycuda.gl.autoinit
+import pycuda.gl
+cuda_gl = pycuda.gl
+cuda_driver = pycuda.driver
+	
+cuda_module = SourceModule("""
+__global__ void invert(unsigned char *source, unsigned char *dest)
+{
+  int block_num        = blockIdx.x + blockIdx.y * gridDim.x;
+  int thread_num       = threadIdx.y * blockDim.x + threadIdx.x;
+  int threads_in_block = blockDim.x * blockDim.y;
+  //Since the image is RGBA we multiply the index 4.
+  //We'll only use the first 3 (RGB) channels though
+  int idx              = 4 * (threads_in_block * block_num + thread_num);
+  dest[idx  ] = 255 - source[idx  ];
+  dest[idx+1] = 255 - source[idx+1];
+  dest[idx+2] = 255 - source[idx+2];
+}
+""")
+zscore = cuda_module.get_function("invert")
 
-	#findsimplextime += time.time() - fst 
-
-
-	#umt = time.time() 
-	#Update the other points
-	###Recompute contours
-	#fot = time.time()
-	(mask, ctrs, fd) = findObjectThreshold(frame2, threshold = threshold)
-	#findobjecttime += time.time() - fot 
-	##-Reset bar lengths for points that moved from flow.
-	##-For points that didn't move, move these points with their forces,
-	## keeping the points that did move from flow fixed.
-	##-Add a few iterations of motion for all points to stabilize noisy movements
-	#umt = time.time() 
-	distmesh.updateMesh(ctrs, fd, next)
-	#updateMesh(distmesh, ctrs, fd, next)
-	#updatemeshtime += time.time() - umt 
-
-	#Draw contour and lines
-	#dt = time.time()
-	cv2.drawContours(frame2, ctrs.contours, -1, (0,255,0), 1)
-	drawGrid(frame2, distmesh.p, distmesh.bars)
-	cv2.imshow('frame',frame2)
-	k = cv2.waitKey(30) & 0xff
-	if k == 27:
-		break
-	output.write(frame2)
-	#drawingtime += time.time() - dt
-
-	prvs = next
-
-	#totaltime = drawingtime + updatemeshtime + findsimplextime + opticflowtime
-	#totaltime = updatemeshtime + findobjecttime
-	#print 'Drawing', 100*drawingtime/totaltime, 'Update Mesh', 100*updatemeshtime/totaltime, 'Find simplex', 100*findsimplextime/totaltime, 'Optic flow', 100*opticflowtime/totaltime
-	#print 'Update Mesh', 100*updatemeshtime/totaltime, 'Find object', 100*findobjecttime/totaltime
-
-cap.release()
-output.release()
-cv2.destroyAllWindows()
+###########################################
+kf.compute(capture.gray_frame(), flowframe)

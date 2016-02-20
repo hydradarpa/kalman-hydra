@@ -38,6 +38,26 @@ void main()
 }
 """
 
+FRAG_SHADER_RED = """ // simple fragment shader
+uniform sampler2D texture1;
+
+void main()
+{
+	vec4 tex1 = texture2D(texture1, gl_TexCoord[0].st);
+	gl_FragColor = vec4(tex1.r, 0, 0, tex1.a);
+}
+"""
+
+FRAG_SHADER_GREEN = """ // simple fragment shader
+uniform sampler2D texture1;
+
+void main()
+{
+	vec4 tex1 = texture2D(texture1, gl_TexCoord[0].st);
+	gl_FragColor = vec4(0, tex1.g, 0, tex1.a);
+}
+"""
+
 FRAG_SHADER_FLOWX = """ // simple fragment shader
 varying vec4 v_color;
 
@@ -76,16 +96,21 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, nx, im1):
+	def __init__(self, distmesh, vel, nx, im1, eps_R):
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		app.Canvas.__init__(self, keys='interactive', title = title)
-		self.indices_buffer, self.outline_buffer, self.vertex_data = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
+		self.size = (nx, nx)
+		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
+		self._quad = gloo.VertexBuffer(self.quad_data)
+		self.current_frame = im1 
+		self.current_texture = gloo.Texture2D(im1)
+		self.init_texture = gloo.Texture2D(im1)
 
 		#Setup programs
 		self._program = gloo.Program(VERT_SHADER, FRAG_SHADER)
-		self._program['texture1'] = gloo.Texture2D(im1)
+		self._program['texture1'] = self.init_texture
 		self._program.bind(self._vbo)
 		self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
 		self._program_lines['u_color'] = 1, 1, 0, 1
@@ -99,6 +124,8 @@ class Renderer(app.Canvas):
 		self._program_flow = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOW)
 		self._program_flow['u_color'] = 0, 1, 0, 1
 		self._program_flow.bind(self._vbo)
+		self._program_red = gloo.Program(VERT_SHADER, FRAG_SHADER_RED)
+		self._program_green = gloo.Program(VERT_SHADER, FRAG_SHADER_GREEN)
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
@@ -109,21 +136,23 @@ class Renderer(app.Canvas):
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
 
-		self.cudagl = CUDAGL(self._rendertex1)
-
+		#import rpdb2 
+		#rpdb2.start_embedded_debugger("asdf")
+		gloo.set_viewport(0, 0, nx, nx)
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
 
+		self.cudagl = CUDAGL(self._rendertex1, eps_R, self._fbo1)
+
 	def on_resize(self, event):
 		width, height = event.physical_size
-		gloo.set_viewport(0, 0, width, height)
+		#gloo.set_viewport(0, 0, width, height)
 
 	def on_draw(self, event):
 		#Render the current positions to FBO1 
 		gloo.clear()
 		with self._fbo1:
-
 			self._program.draw('triangles', self.indices_buffer)
 		#Render the current velocities to FBO2
 		gloo.clear()
@@ -133,23 +162,32 @@ class Renderer(app.Canvas):
 		with self._fbo3:
 			self._program_flowy.draw('triangles', self.indices_buffer)
 
+		#Turn on additive blending
+		gloo.set_state('additive')
 		gloo.clear()
 		#Summary render to main screen
 		if self.state == 'texture':
 			self._program.draw('triangles', self.indices_buffer)
 		else:
-			self._program_flow.draw('triangles', self.indices_buffer)
+			self._program_red['texture1'] = self.current_texture
+			self._program_red.bind(self._quad)
+			self._program_red.draw('triangles', self.quad_buffer)
+			self._program_green.bind(self._vbo)
+			self._program_green['texture1'] = self.init_texture
+			self._program_green.draw('triangles', self.indices_buffer)
 		#Draw wireframe, too
 		self._program_lines.draw('lines', self.outline_buffer)
 
 	def on_key_press(self, event):
 		if event.key in [' ']:
 			if self.state == 'texture':
-				self.state = 'flow'
+				self.state = 'overlay'
 			else:
 				self.state = 'texture'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 			self.update()
+		#if event.key in ['q', 'Q']:
+		#	app.quit()
 
 	def update_vertex_buffer(self, vertices, velocities):
 		verdata = np.zeros((self.nP,3))
@@ -200,10 +238,31 @@ class Renderer(app.Canvas):
 			outlinedata[idx,5] = t[0]
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
-		return indices_buffer, outline_buffer, vertex_data
 
-	def z(self, y_im, eps_R):
-		return self.cudagl.z(self._rendertex1, y_im, eps_R)
+		quad_data = np.zeros(4, dtype=[('a_position', np.float32, 3),
+				('a_texcoord', np.float32, 2), ('a_velocity', np.float32, 3)])
+		quad_ver = np.array([[-1.0, 1.0, 0.0],  [-1.0, -1.0, 0.0],
+							 [ 1.0, 1.0, 0.0], [ 1.0, -1.0, 0.0,] ], np.float32)
+		quad_coord = np.array([  [0.0, 0.0], [0.0, 1.0],
+								[1.0, 0.0], [1.0, 1.0] ], np.float32)
+		quad_vel = np.zeros((4,3))
+		quad_data['a_texcoord'] = quad_coord 
+		quad_data['a_position'] = quad_ver 
+		quad_data['a_velocity'] = quad_vel 
+		quad_triangles = np.array([[0, 1, 2], [1, 2, 3]])
+		quad_indices = quad_triangles.reshape((1,-1)).astype(np.uint16)
+		quad_buffer = gloo.IndexBuffer(quad_indices)
+
+		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer
+
+	def update_frame(self, y_im):
+		self.current_frame = y_im 
+		self.current_texture = gloo.Texture2D(y_im)
+
+	def z(self, y_im):
+		#return self.cudagl.z(y_im)
+		return self.cudagl.z_CPU(y_im)
+
 
 class VideoStream:
 	def __init__(self, fn, threshold):

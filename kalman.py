@@ -9,20 +9,22 @@ import numpy as np
 from distmesh_dyn import DistMesh
 from renderer import Renderer
 
+import pdb 
+
 class KFState:
 	def __init__(self, distmesh, im, eps_Q = 1, eps_R = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 
-		#self._vel = np.zeros(self._ver.shape, np.float32)
+		self._vel = np.zeros(self._ver.shape, np.float32)
 		#For testing we'll give some initial velocity
-		self._vel = np.ones(self._ver.shape, np.float32)
+		#self._vel = np.ones(self._ver.shape, np.float32)
 
 		#Set up initial guess for texture
 		self.tex = im
 		self.nx = im.shape[0]
 		self.ny = im.shape[1]
-		self.M = self.nx*self.ny
+		#self.M = self.nx*self.ny
 
 		#Number of 'observations'
 		self.NZ = 1
@@ -54,7 +56,7 @@ class KFState:
 		self.P = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, self.nx, im)
+		self.renderer = Renderer(distmesh, self._vel, self.nx, im, self.eps_R)
 
 	def size(self):
 		return self.X.shape[0]
@@ -72,15 +74,19 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 	def z(self, y):
-		return self.renderer.z(y, self.eps_R)
+		return self.renderer.z(y)
 
 class KalmanFilter:
 	def __init__(self, distmesh, im):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
+		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im)
+		self.state.M = self.observation(im)
+		print self.state.M 
 
 	def compute(self, y_im, y_flow = None):
+		self.state.renderer.update_frame(y_im)
 		self.predict()
 		self.update(y_im, y_flow = None)
 
@@ -99,8 +105,11 @@ class KalmanFilter:
 		return self.N*4
 
 	def update(self, y_im, y_flow = None):
-		print 'Updating'
+		#import rpdb2 
+		#rpdb2.start_embedded_debugger("asdf")
 		z_tilde = self.observation(y_im)
+		print 'z = %f' % z_tilde 
+		print 'Updating'
 		X = self.state.X
 		P = self.state.P
 		R = self.state.R
@@ -110,6 +119,7 @@ class KalmanFilter:
 
 		##Update equations 
 		S = H*P*H.T + R
+		print S.shape 
 		Sinv = np.linalg.inv(S)
 		K = P*H.T*Sinv 
 		self.state.P = (I - K*H)*P 
@@ -120,7 +130,7 @@ class KalmanFilter:
 		self.state.render()
 		return self.state.z(y_im)
 
-	def linearize_obs(self, z_tilde, y_im, deltaX = 3):
+	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
 		print 'Linearizing z(x) around current estimate'
 		H = np.zeros((1, self.size()))
 		Xorig = self.state.X.copy()
@@ -137,7 +147,24 @@ class KalmanFilter:
 		#We don't need to perturb the velocities, since we assume that we don't
 		#observe them (yet), thus any perturbation will have no effect on z,
 		#thus this part of H stays zero
-
 		return H
 
-
+def test_data(nx, ny):
+	nframes = 3
+	video = np.zeros((nx, ny, nframes))
+	im = np.zeros((nx, ny))
+	#Set up a box in the first frame, with some basic changes in intensity
+	start = floor(nx/3)
+	end = floor(2*nx/3)
+	for i in range(start,end):
+		for j in range(start,end):
+			if i > j:
+				col = 128
+			else:
+				col = 255
+			im[i,j] = col
+	#Translate the box for a few frames
+	for i in range(nframes):
+		imtrans = im[i:,i:]
+		video[:-i,:-i,i] = imtrans 
+	return video 

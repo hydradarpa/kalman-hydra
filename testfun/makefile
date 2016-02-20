@@ -18,3 +18,6 @@ write:
 
 write2:
 	$(CC) $(CFLAGS) testvidwriter2.cpp $(LIBS) -o video-write2
+
+hdf:
+	$(CC) $(CFLAGS) testhdf.cpp $(LIBS) -o testhdf
