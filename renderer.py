@@ -96,7 +96,7 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, nx, im1, eps_R):
+	def __init__(self, distmesh, vel, nx, im1, eps_R, cuda):
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		app.Canvas.__init__(self, keys='interactive', title = title)

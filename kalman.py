@@ -12,7 +12,7 @@ from renderer import Renderer
 import pdb 
 
 class KFState:
-	def __init__(self, distmesh, im, eps_Q = 1, eps_R = 1e-3):
+	def __init__(self, distmesh, im, cuda, eps_Q = 1, eps_R = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 
@@ -56,7 +56,7 @@ class KFState:
 		self.P = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, self.nx, im, self.eps_R)
+		self.renderer = Renderer(distmesh, self._vel, self.nx, im, self.eps_R, cuda)
 
 	def size(self):
 		return self.X.shape[0]
@@ -77,11 +77,11 @@ class KFState:
 		return self.renderer.z(y)
 
 class KalmanFilter:
-	def __init__(self, distmesh, im):
+	def __init__(self, distmesh, im, cuda):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im)
+		self.state = KFState(distmesh, im, cuda)
 		self.state.M = self.observation(im)
 		print self.state.M 
 
