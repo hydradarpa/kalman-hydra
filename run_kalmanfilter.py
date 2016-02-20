@@ -36,6 +36,8 @@ Ben Lansdell
 		help='Threshold intensity below which is background', type = int)
 	parser.add_argument('-s', '--gridsize', default=15,
 		help='Edge length for mesh (smaller is finer)', type = int)
+	parser.add_argument('-c', '--cuda', default=False,
+		help='Whether or not to do analysis on CUDA', type = bool)
 	args = parser.parse_args()
 
 	if len(sys.argv) == 1:
@@ -51,10 +53,8 @@ Ben Lansdell
 	#Not implemented
 	flowframe = None #capture.backsub(hdf.read())
 
-	kf = KalmanFilter(distmesh, frame)
+	kf = KalmanFilter(distmesh, frame, args.cuda)
 	kf.compute(capture.gray_frame(), flowframe)
-
-
 
 	nI = 3
 	count = 0
