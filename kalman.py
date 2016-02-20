@@ -5,6 +5,7 @@
 #lansdell. Feb 9th 2016
 
 import numpy as np
+import cv2 
 
 from distmesh_dyn import DistMesh
 from renderer import Renderer
@@ -140,8 +141,14 @@ class KalmanFilter:
 			self.state.X[idx,0] += deltaX
 			#Update and render
 			zp = self.observation(y_im)
+
+			self.state.X[idx,0] -= 2*deltaX
+			#Update and render
+			zp2 = self.observation(y_im)
+
 			#Record change in z_tilde given change in position
-			H[0,idx] = (z_tilde - zp)/deltaX
+			H[0,idx] = (zp2 - zp)/deltaX/2
+			#H[0,idx] = (z_tilde - zp)/deltaX
 			self.state.X = Xorig.copy()
 
 		#We don't need to perturb the velocities, since we assume that we don't
@@ -164,6 +171,36 @@ def test_data(nx, ny):
 			else:
 				col = 255
 			im[i,j] = col
+	#Translate the box for a few frames
+	for i in range(nframes):
+		imtrans = im[speed*i:,speed*i:]
+		if i > 0:
+			video[:-speed*i,:-speed*i,i] = imtrans 
+		else:
+			video[:,:,i] = imtrans
+	return video 
+
+
+def test_data_texture(nx, ny):
+	nframes = 10
+	speed = 3
+	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
+	im = np.zeros((nx, ny))
+	#Set up a box in the first frame, with some basic changes in intensity
+	start = nx//3
+	end = 2*nx//3
+	for i in range(start,end):
+		for j in range(start,end):
+			if i > j:
+				col = 128
+			else:
+				col = 200
+			im[i,j] = col
+	#Add noise
+	noise = 5*np.random.normal(size = im.shape)
+	#Apply Gaussian blur 
+	im = im + noise 
+	im = cv2.GaussianBlur(im,(15,15),0)
 	#Translate the box for a few frames
 	for i in range(nframes):
 		imtrans = im[speed*i:,speed*i:]

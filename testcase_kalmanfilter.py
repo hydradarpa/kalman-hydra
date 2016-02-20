@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys
-from kalman import KalmanFilter, test_data
+from kalman import KalmanFilter, test_data, test_data_texture
 from renderer import VideoStream
 from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
@@ -11,7 +11,8 @@ cuda = True
 gridsize = 30
 threshold = 9
 
-video = test_data(680, 680)
+#video = test_data(680, 680)
+video = test_data_texture(680, 680)
 frame = video[:,:,0]
 #Make contours
 ##mask, ctrs, fd = capture.backsub()
