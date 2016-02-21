@@ -84,7 +84,7 @@ class KalmanFilter:
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, cuda)
 		self.state.M = self.observation(im)
-		print self.state.M 
+		#print self.state.M 
 
 	def compute(self, y_im, y_flow = None):
 		self.state.renderer.update_frame(y_im)
@@ -93,6 +93,9 @@ class KalmanFilter:
 
 	def predict(self):
 		print 'Predicting'
+		#import rpdb2 
+		#rpdb2.start_embedded_debugger("asdf")
+
 		X = self.state.X 
 		F = self.state.F 
 		Q = self.state.Q
@@ -100,6 +103,7 @@ class KalmanFilter:
 		#Prediction equations 
 		self.state.X = F*X
 		self.state.P = F*P*F.T + Q 
+		#print np.sum(self.state.velocities())
 
 	def size(self):
 		#State space size
@@ -132,7 +136,7 @@ class KalmanFilter:
 		return self.state.z(y_im)
 
 	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
-		print 'Linearizing z(x) around current estimate'
+		#print 'Linearizing z(x) around current estimate'
 		H = np.zeros((1, self.size()))
 		Xorig = self.state.X.copy()
 		#print self.state.X.shape 
@@ -141,20 +145,51 @@ class KalmanFilter:
 			self.state.X[idx,0] += deltaX
 			#Update and render
 			zp = self.observation(y_im)
+			self.state.X[idx,0] -= deltaX
 
-			self.state.X[idx,0] -= 2*deltaX
+			#elf.state.X[idx,0] -= deltaX
 			#Update and render
-			zp2 = self.observation(y_im)
+			#zp2 = self.observation(y_im)
+			#self.state.X[idx,0] += deltaX
 
 			#Record change in z_tilde given change in position
-			H[0,idx] = (zp2 - zp)/deltaX/2
-			#H[0,idx] = (z_tilde - zp)/deltaX
-			self.state.X = Xorig.copy()
+			#H[0,idx] = -(zp2 - zp)/deltaX/2
+			H[0,idx] = (z_tilde - zp)/deltaX
+			#self.state.X = Xorig.copy()
+		#self.state.refresh()
+		#self.state.render()
 
 		#We don't need to perturb the velocities, since we assume that we don't
 		#observe them (yet), thus any perturbation will have no effect on z,
 		#thus this part of H stays zero
 		return H
+
+class IteratedKalmanFilter(KalmanFilter):
+	def __init__(self, distmesh, im, cuda):
+		KalmanFilter.__init__(self, distmesh, im, cuda)
+		self.nI = 10
+
+	def update(self, y_im, y_flow = None):
+		#import rpdb2 
+		#rpdb2.start_embedded_debugger("asdf")
+		print 'Updating'
+		X = self.state.X
+		P = self.state.P
+		R = self.state.R
+		M = self.state.M
+		I = np.eye(P.shape[0])
+
+		for i in range(self.nI):
+			z_tilde = self.observation(y_im)
+			#print 'z = %f' % z_tilde 
+			H = self.linearize_obs(z_tilde, y_im)	
+			##Update equations 
+			S = H*P*H.T + R
+			Sinv = np.linalg.inv(S)
+			K = P*H.T*Sinv
+			self.state.X = X + K*(z_tilde - M)
+		self.state.P = (I - K*H)*P
+
 
 def test_data(nx, ny):
 	nframes = 10
@@ -182,6 +217,7 @@ def test_data(nx, ny):
 
 
 def test_data_texture(nx, ny):
+	noise = 0
 	nframes = 10
 	speed = 3
 	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
@@ -195,11 +231,11 @@ def test_data_texture(nx, ny):
 				col = 128
 			else:
 				col = 200
-			im[i,j] = col
+			im[i,j] = col + noise*np.random.normal(size = (1,1))
 	#Add noise
-	noise = 5*np.random.normal(size = im.shape)
+	#noise = 
 	#Apply Gaussian blur 
-	im = im + noise 
+	#im = im + noise 
 	im = cv2.GaussianBlur(im,(15,15),0)
 	#Translate the box for a few frames
 	for i in range(nframes):

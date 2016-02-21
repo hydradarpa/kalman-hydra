@@ -113,7 +113,7 @@ class Renderer(app.Canvas):
 		self._program['texture1'] = self.init_texture
 		self._program.bind(self._vbo)
 		self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
-		self._program_lines['u_color'] = 1, 1, 0, 1
+		self._program_lines['u_color'] = 0, 1, 1, 1
 		self._program_lines.bind(self._vbo)
 		self._program_flowx = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWX)
 		self._program_flowx['u_color'] = 1, 0, 0, 1
