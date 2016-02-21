@@ -1,2 +1,14 @@
 *.pyc
 video
+testfun/nohup.out
+testfun/optical_flow
+testfun/optical_flow_hdf.cpp
+testfun/optical_flow_video
+testfun/output.avi
+testfun/starter_video
+testfun/test.avi
+testfun/testhdf.cpp
+testfun/video-write2
+testfun/video_reader
+testfun/videoreader
+flows
