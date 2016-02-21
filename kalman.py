@@ -167,7 +167,7 @@ class KalmanFilter:
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, cuda):
 		KalmanFilter.__init__(self, distmesh, im, cuda)
-		self.nI = 10
+		self.nI = 100
 
 	def update(self, y_im, y_flow = None):
 		#import rpdb2 
@@ -215,6 +215,29 @@ def test_data(nx, ny):
 			video[:,:,i] = imtrans
 	return video 
 
+def test_data_up(nx, ny):
+	nframes = 30
+	speed = 2
+	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
+	im = np.zeros((nx, ny))
+	#Set up a box in the first frame, with some basic changes in intensity
+	start = nx//3
+	end = 2*nx//3
+	for i in range(start,end):
+		for j in range(start,end):
+			if i > j:
+				col = 128
+			else:
+				col = 255
+			im[i,j] = col
+	#Translate the box for a few frames
+	for i in range(nframes):
+		imtrans = im[:,speed*i:]
+		if i > 0:
+			video[:,:-speed*i,i] = imtrans 
+		else:
+			video[:,:,i] = imtrans
+	return video 
 
 def test_data_texture(nx, ny):
 	noise = 0
