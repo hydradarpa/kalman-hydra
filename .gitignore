@@ -1,4 +1,5 @@
 *.pyc
+*.png
 video
 testfun/nohup.out
 testfun/optical_flow

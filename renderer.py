@@ -167,7 +167,7 @@ class Renderer(app.Canvas):
 		gloo.set_state('additive')
 		gloo.clear()
 		#Summary render to main screen
-		if self.state == 'texture':
+		if self.state == 'texture' or self.state == 'raw':
 			self._program.draw('triangles', self.indices_buffer)
 		else:
 			self._program_red['texture1'] = self.current_texture
@@ -177,11 +177,14 @@ class Renderer(app.Canvas):
 			self._program_green['texture1'] = self.init_texture
 			self._program_green.draw('triangles', self.indices_buffer)
 		#Draw wireframe, too
-		self._program_lines.draw('lines', self.outline_buffer)
+		if self.state != 'raw':
+			self._program_lines.draw('lines', self.outline_buffer)
 
 	def on_key_press(self, event):
 		if event.key in [' ']:
 			if self.state == 'texture':
+				self.state = 'raw'
+			elif self.state == 'raw':
 				self.state = 'overlay'
 			else:
 				self.state = 'texture'

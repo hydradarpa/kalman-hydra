@@ -34,7 +34,7 @@ Ben Lansdell
 		help='avi output video file', nargs='?')
 	parser.add_argument('-t', '--threshold', default=9,
 		help='Threshold intensity below which is background', type = int)
-	parser.add_argument('-s', '--gridsize', default=15,
+	parser.add_argument('-s', '--gridsize', default=18,
 		help='Edge length for mesh (smaller is finer)', type = int)
 	parser.add_argument('-c', '--cuda', default=False,
 		help='Whether or not to do analysis on CUDA', type = bool)
