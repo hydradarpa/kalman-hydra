@@ -9,6 +9,7 @@ from vispy import gloo
 from vispy import app
 from imgproc import findObjectThreshold
 import cv2 
+from time import gmtime, strftime
 
 from cuda import CUDAGL 
 
@@ -186,8 +187,12 @@ class Renderer(app.Canvas):
 				self.state = 'texture'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 			self.update()
-		#if event.key in ['q', 'Q']:
-		#	app.quit()
+		if event.key in ['s']:
+			pixels = gloo.read_pixels()
+			fn = './screenshot' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			print 'Saving screenshot to ' + fn
+			cv2.imwrite(fn, pixels)
+
 
 	def update_vertex_buffer(self, vertices, velocities):
 		verdata = np.zeros((self.nP,3))
