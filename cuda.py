@@ -167,12 +167,31 @@ class CUDAGL:
 
 	def initjacobian_CPU(self, y_im, y_flow):
 		with self._fbo1:
-			y_tilde = gloo.read_pixels()
-		self.z = y_im - y_tilde 
-		self.y_tilde = y_tilde
+			y_tilde = gloo.read_pixels()[:,:,0]
+		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
+		#plt.imshow(self.z)
+		self.y_tilde = y_tilde.astype(float)/255
 
 	def jz_CPU(self):
 		with self._fbo1:
-			yp_tilde = gloo.read_pixels()
-		hz = np.multiply((yp_tilde-self.y_tilde), self.z)
+			yp_tilde = gloo.read_pixels()[:,:,0]
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
+
+		return np.sum(hz)
+
+	def j_CPU(self, state, deltaX, i, j):
+		state.X[i,0] += deltaX
+		state.refresh()
+		state.render()
+		state.X[i,0] -= deltaX
+		with self._fbo1:
+			yp_tilde = gloo.read_pixels()[:,:,0]
+
+		state.X[j,0] += deltaX
+		state.refresh()
+		state.render()
+		state.X[j,0] -= deltaX
+		with self._fbo1:
+			ypp_tilde = gloo.read_pixels()[:,:,0]
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))		
 		return np.sum(hz)

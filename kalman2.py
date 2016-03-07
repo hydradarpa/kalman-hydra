@@ -55,7 +55,7 @@ class KFState:
 		self.W = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, self.nx, im, self.eps_R, cuda)
+		self.renderer = Renderer(distmesh, self._vel, self.nx, im, cuda)
 
 	def size(self):
 		return self.X.shape[0]
@@ -68,11 +68,11 @@ class KFState:
 
 	def update(self, y_im, y_flow):
 		Hz = self._jacobian(y_im, y_flow)
-		HTH = np.zeros((1, self.size()))
+		HTH = self._hessian(y_im, y_flow)
 		return (Hz, HTH)
 
 	def _jacobian(self, y_im, y_flow, deltaX = 2):
-		Hz = np.zeros((1, self.size()))
+		Hz = np.zeros((self.size(),1))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
@@ -82,9 +82,30 @@ class KFState:
 			self.refresh()
 			self.render()
 			hz = self.renderer.jz()
-			Hz[0,idx] = hz/deltaX
+			Hz[idx,0] = hz/deltaX
 			self.X[idx,0] -= deltaX
+
+			self.X[idx,0] -= deltaX
+			self.refresh()
+			self.render()
+			hz = self.renderer.jz()
+			Hz[idx,0] -= hz/deltaX
+			self.X[idx,0] += deltaX
+			Hz[idx,0] = Hz[idx,0]/2
 		return Hz
+
+	def _hessian(self, y_im, y_flow, deltaX = 2):
+		HTH = np.zeros((self.size(),self.size()))
+		self.refresh() 
+		self.render()
+		#Set reference image to unperturbed images
+		self.renderer.initjacobian(y_im, y_flow)
+		#Very inefficient... for now 
+		for i in range(self.N*2):
+			for j in range(self.N*2):
+				hij = self.renderer.j(self, deltaX, i, j)
+				HTH[i,j] = hij/deltaX/deltaX
+		return HTH
 
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))
@@ -115,8 +136,8 @@ class KalmanFilter:
 		W = self.state.W 
 
 		#Prediction equations 
-		self.state.X = F*X
-		self.state.W = F*W*F.T + Weps 
+		self.state.X = np.dot(F,X)
+		self.state.W = np.dot(F, np.dot(W,F.T)) + Weps 
 		#print np.sum(self.state.velocities())
 
 	def size(self):
@@ -131,9 +152,12 @@ class KalmanFilter:
 		W = self.state.W
 		eps_H = self.state.eps_H
 		(Hz, HTH) = self.state.update(y_im, y_flow)
-		self.state.X = X + W*Hz/eps_H
+		print Hz 
+		print HTH
 		invW = np.linalg.inv(W) + HTH/eps_H 
-		self.state.W = np.linalg.inv(invW)
+		W = np.linalg.inv(invW)
+		self.state.X = X + np.dot(W,Hz)/eps_H
+		self.state.W = W 
 
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, cuda):

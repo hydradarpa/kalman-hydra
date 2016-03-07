@@ -10,7 +10,7 @@ import pdb
 import time 
 import cv2 
 
-cuda = True 
+cuda = False 
 gridsize = 100
 threshold = 9
 

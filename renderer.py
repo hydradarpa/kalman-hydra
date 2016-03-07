@@ -97,7 +97,8 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, nx, im1, eps_R, cuda):
+	def __init__(self, distmesh, vel, nx, im1, cuda):
+		self.cuda = cuda
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		app.Canvas.__init__(self, keys='interactive', title = title)
@@ -278,6 +279,12 @@ class Renderer(app.Canvas):
 			return self.cudagl.jz()
 		else:
 			return self.cudagl.jz_CPU()
+
+	def j(self, state, deltaX, i, j):
+		if self.cuda:
+			return self.cudagl.j(state, deltaX, i, j)
+		else:
+			return self.cudagl.j_CPU(state, deltaX, i, j)
 
 class VideoStream:
 	def __init__(self, fn, threshold):
