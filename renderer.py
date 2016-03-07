@@ -267,10 +267,25 @@ class Renderer(app.Canvas):
 		self.current_frame = y_im 
 		self.current_texture = gloo.Texture2D(y_im)
 
-	def z(self, y_im):
-		#return self.cudagl.z(y_im)
-		return self.cudagl.z_CPU(y_im)
+	def initjacobian(self, y_im, y_flow):
+		self.cudagl.initjacobian(y_im, y_flow)
 
+	def jz(self):
+		return self.cudagl.jz()
+
+	def observation(self, y_im):
+		self.state.refresh()
+		self.state.render()
+		return self.state.z(y_im)
+
+	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
+		H = np.zeros((1, self.size()))
+		for idx in range(self.state.N*2):
+			self.state.X[idx,0] += deltaX
+			zp = self.observation(y_im)
+			self.state.X[idx,0] -= deltaX
+			H[0,idx] = (z_tilde - zp)/deltaX
+		return H
 
 class VideoStream:
 	def __init__(self, fn, threshold):

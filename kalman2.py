@@ -13,10 +13,9 @@ from renderer import Renderer
 import pdb
 
 class KFState:
-	def __init__(self, distmesh, im, cuda, eps_Q = 1, eps_R = 1e-3):
+	def __init__(self, distmesh, im, cuda, eps_F = 1, eps_H = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
-
 		self._vel = np.zeros(self._ver.shape, np.float32)
 		#For testing we'll give some initial velocity
 		#self._vel = np.ones(self._ver.shape, np.float32)
@@ -25,12 +24,12 @@ class KFState:
 		self.tex = im
 		self.nx = im.shape[0]
 		self.ny = im.shape[1]
-		#self.M = self.nx*self.ny
+		self.M = self.nx*self.ny
 
-		#Number of 'observations'
-		self.NZ = 1
-		self.eps_Q = eps_Q
-		self.eps_R = eps_R
+		#Number of observations
+		self.NZ = self.M
+		self.eps_F = eps_F
+		self.eps_H = eps_H
 
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
@@ -52,9 +51,8 @@ class KFState:
 		e = np.eye(2*self.N)
 		z = np.zeros((2*self.N,2*self.N))
 		self.F = np.bmat([[e, e], [z, e]])
-		self.Q = eps_Q * np.bmat([[e/4, e/2], [e/2, e]])
-		self.R = eps_R * np.ones((self.NZ,self.NZ))
-		self.P = np.eye(self._vel.shape[0]*4)
+		self.Weps = eps_F * np.bmat([[e/4, e/2], [e/2, e]])
+		self.W = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, self.nx, im, self.eps_R, cuda)
@@ -67,6 +65,29 @@ class KFState:
 
 	def render(self):
 		self.renderer.on_draw(None)
+
+	def update(self, y_im, y_flow):
+		Hz = self._jacobian(y_im, y_flow)
+		HTH = np.zeros((1, self.size()))
+		return (Hz, HTH)
+
+	def _jacobian(self, y_im, y_flow, deltaX = 2):
+		Hz = np.zeros((1, self.size()))
+		self.refresh() 
+		self.render()
+		#Set reference image to unperturbed images
+		self._initjacobian(y_im, y_flow)
+		for idx in range(self.N*2):
+			self.X[idx,0] += deltaX
+			self.refresh()
+			self.render()
+			hz = self.renderer.jz()
+			Hz[0,idx] = hz/deltaX
+			self.X[idx,0] -= deltaX
+		return Hz
+
+	def _initjacobian(self, y_im, y_flow):
+		self.renderer.initjacobian(y_im, y_flow)
 
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))
@@ -83,7 +104,7 @@ class KalmanFilter:
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, cuda)
-		self.state.M = self.observation(im)
+		#self.state.M = self.observation(im)
 		#print self.state.M 
 
 	def compute(self, y_im, y_flow = None):
@@ -98,11 +119,12 @@ class KalmanFilter:
 
 		X = self.state.X 
 		F = self.state.F 
-		Q = self.state.Q
-		P = self.state.P 
+		Weps = self.state.Weps
+		W = self.state.W 
+
 		#Prediction equations 
 		self.state.X = F*X
-		self.state.P = F*P*F.T + Q 
+		self.state.W = F*W*F.T + Weps 
 		#print np.sum(self.state.velocities())
 
 	def size(self):
@@ -112,37 +134,14 @@ class KalmanFilter:
 	def update(self, y_im, y_flow = None):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
-		z_tilde = self.observation(y_im)
-		print 'z = %f' % z_tilde 
 		print 'Updating'
 		X = self.state.X
-		P = self.state.P
-		R = self.state.R
-		H = self.linearize_obs(z_tilde, y_im)
-		M = self.state.M
-		I = np.eye(P.shape[0])
-
-		##Update equations 
-		S = H*P*H.T + R
-		print S.shape 
-		Sinv = np.linalg.inv(S)
-		K = P*H.T*Sinv 
-		self.state.P = (I - K*H)*P 
-		self.state.X = X + K*(z_tilde - M)
-
-	def observation(self, y_im):
-		self.state.refresh()
-		self.state.render()
-		return self.state.z(y_im)
-
-	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
-		H = np.zeros((1, self.size()))
-		for idx in range(self.state.N*2):
-			self.state.X[idx,0] += deltaX
-			zp = self.observation(y_im)
-			self.state.X[idx,0] -= deltaX
-			H[0,idx] = (z_tilde - zp)/deltaX
-		return H
+		W = self.state.W
+		eps_H = self.state.eps_H
+		(Hz, HTH) = self.state.update(y_im, y_flow)
+		self.state.X = X + W*Hz/eps_H
+		invW = np.linalg.inv(W) + HTH/eps_H 
+		self.state.W = np.linalg.inv(invW)
 
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, cuda):
@@ -154,21 +153,13 @@ class IteratedKalmanFilter(KalmanFilter):
 		#rpdb2.start_embedded_debugger("asdf")
 		print 'Updating'
 		X = self.state.X
-		P = self.state.P
-		R = self.state.R
-		M = self.state.M
-		I = np.eye(P.shape[0])
-
+		W = self.state.W
+		eps_H = self.state.eps_H
 		for i in range(self.nI):
-			z_tilde = self.observation(y_im)
-			#print 'z = %f' % z_tilde 
-			H = self.linearize_obs(z_tilde, y_im)	
-			##Update equations 
-			S = H*P*H.T + R
-			Sinv = np.linalg.inv(S)
-			K = P*H.T*Sinv
-			self.state.X = X + K*(z_tilde - M)
-		self.state.P = (I - K*H)*P
+			(Kres, HTH) = self.state.update(y_im, y_flow)
+			self.state.X = X + W*Kres/eps_H
+		invW = np.linalg.inv(W) + HTH/eps_H 
+		self.state.W = np.linalg.inv(invW)
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, cuda, eps_Q = 1, eps_R = 1e-3):
@@ -189,7 +180,7 @@ class KFStateMorph(KFState):
 		self.M = self.nx*self.ny
 
 		#Number of 'observations'
-		self.NZ = self.nx*self.ny 
+		self.NZ = self.M
 		self.eps_Q = eps_Q
 		self.eps_R = eps_R
 
@@ -257,81 +248,3 @@ class KalmanFilterMorph(KalmanFilter):
 			self.state.X[idx,0] -= deltaX
 			H[:,idx] = (z_tilde - zp)/deltaX
 		return H
-
-def test_data(nx, ny):
-	nframes = 10
-	speed = 3
-	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
-	im = np.zeros((nx, ny))
-	#Set up a box in the first frame, with some basic changes in intensity
-	start = nx//3
-	end = 2*nx//3
-	for i in range(start,end):
-		for j in range(start,end):
-			if i > j:
-				col = 128
-			else:
-				col = 255
-			im[i,j] = col
-	#Translate the box for a few frames
-	for i in range(nframes):
-		imtrans = im[speed*i:,speed*i:]
-		if i > 0:
-			video[:-speed*i,:-speed*i,i] = imtrans 
-		else:
-			video[:,:,i] = imtrans
-	return video 
-
-def test_data_up(nx, ny):
-	nframes = 30
-	speed = 2
-	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
-	im = np.zeros((nx, ny))
-	#Set up a box in the first frame, with some basic changes in intensity
-	start = nx//3
-	end = 2*nx//3
-	for i in range(start,end):
-		for j in range(start,end):
-			if i > j:
-				col = 128
-			else:
-				col = 255
-			im[i,j] = col
-	#Translate the box for a few frames
-	for i in range(nframes):
-		imtrans = im[:,speed*i:]
-		if i > 0:
-			video[:,:-speed*i,i] = imtrans 
-		else:
-			video[:,:,i] = imtrans
-	return video 
-
-def test_data_texture(nx, ny):
-	noise = 0
-	nframes = 10
-	speed = 3
-	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
-	im = np.zeros((nx, ny))
-	#Set up a box in the first frame, with some basic changes in intensity
-	start = nx//3
-	end = 2*nx//3
-	for i in range(start,end):
-		for j in range(start,end):
-			if i > j:
-				col = 128
-			else:
-				col = 200
-			im[i,j] = col + noise*np.random.normal(size = (1,1))
-	#Add noise
-	#noise = 
-	#Apply Gaussian blur 
-	#im = im + noise 
-	im = cv2.GaussianBlur(im,(15,15),0)
-	#Translate the box for a few frames
-	for i in range(nframes):
-		imtrans = im[speed*i:,speed*i:]
-		if i > 0:
-			video[:-speed*i,:-speed*i,i] = imtrans 
-		else:
-			video[:,:,i] = imtrans
-	return video 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import sys
-from kalman import KalmanFilter, IteratedKalmanFilter, test_data, test_data_texture
-from renderer import VideoStream
 from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
+from kalman import test_data, test_data_texture
+from kalman2 import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph
+from renderer import VideoStream
 
 import pdb 
 import time 
@@ -23,8 +24,9 @@ mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame)
 
 flowframe = None
-#kf = KalmanFilter(distmesh, frame, cuda)
-kf = IteratedKalmanFilter(distmesh, frame, cuda)
+kf = KalmanFilter(distmesh, frame, cuda)
+#kf = IteratedKalmanFilter(distmesh, frame, cuda)
+#kf = KalmanFilterMorph(distmesh, frame, cuda)
 kf.compute(frame, flowframe)
 nF = video.shape[2]
 nI = 10

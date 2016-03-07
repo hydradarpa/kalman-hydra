@@ -51,25 +51,25 @@ Ben Lansdell
 	
 	#Load flow data from .hdf file
 	#Not implemented
-	flowframe = None #capture.backsub(hdf.read())
-
-	kf = KalmanFilter(distmesh, frame, args.cuda)
-	kf.compute(capture.gray_frame(), flowframe)
-
-	nI = 3
-	count = 0
-	while(capture.isOpened()):
-		count += 1
-		print 'Frame %d' % count 
-		ret, frame, grayframe = capture.read()
-	#	flowframe = capture.backsub(hdf.read())
-		if ret == False:
-			break 
-		for i in range(nI):
-			print 'Iteration %d' % i 
-			raw_input("Finished. Press Enter to continue")
-			kf.compute(grayframe, flowframe)
-		#kf.compute(grayframe, flowframe)
+	#flowframe = None #capture.backsub(hdf.read())
+#
+	#kf = KalmanFilter(distmesh, frame, args.cuda)
+	#kf.compute(capture.gray_frame(), flowframe)
+#
+	#nI = 3
+	#count = 0
+	#while(capture.isOpened()):
+	#	count += 1
+	#	print 'Frame %d' % count 
+	#	ret, frame, grayframe = capture.read()
+	##	flowframe = capture.backsub(hdf.read())
+	#	if ret == False:
+	#		break 
+	#	for i in range(nI):
+	#		print 'Iteration %d' % i 
+	#		raw_input("Finished. Press Enter to continue")
+	#		kf.compute(grayframe, flowframe)
+	#	#kf.compute(grayframe, flowframe)
 	
 	#capture.release()
 	#output.release()

@@ -24,12 +24,10 @@ import pdb
 import cv2
 from matplotlib import pyplot as plt
 
-
 class CUDAGL:
-	def __init__(self, texture, eps_R, fbo):
+	def __init__(self, texture, fbo):
 		self._fbo1 = fbo 
 		self.texture = texture
-		self.eps_R = eps_R
 		self.width = texture.shape[0]
 		self.height = texture.shape[1]
 		self.size = texture.shape
@@ -40,7 +38,7 @@ class CUDAGL:
 		cuda_driver = pycuda.driver
 	
 		cuda_module = SourceModule("""
-		__global__ void zscore(unsigned char *y_tilde, unsigned char *y_im)
+		__global__ void zscore(unsigned char *y_tilde, unsigned char *yp_tilde, unsigned char *z)
 		{
 		  int block_num        = blockIdx.x + blockIdx.y * gridDim.x;
 		  int thread_num       = threadIdx.y * blockDim.x + threadIdx.x;
@@ -54,13 +52,13 @@ class CUDAGL:
 		}
 		""")
 		self.zscore = cuda_module.get_function("zscore")
-		# The argument "PP" indicates that the invert function will take two PBOs as arguments
-		self.zscore.prepare("PP")
+		# The argument "PP" indicates that the zscore function will take two PBOs as arguments
+		self.zscore.prepare("PPP")
 		# create y_tilde and y_im pixel buffer objects for processing
 		self._createPBOs()
 
 	def _createPBOs(self):
-		global y_tilde_pbo, y_im_pbo, pycuda_y_tilde_pbo, pycuda_y_im_pbo
+		global y_tilde_pbo, yp_tilde_pbo, z_tilde_pbo, pycuda_y_tilde_pbo, pycuda_yp_tilde_pbo, pycuda_z_tilde_pbo
 		num_texels = self.width*self.height
 		data = np.zeros((num_texels,4),np.uint8)
 		y_tilde_pbo = glGenBuffers(1)
@@ -69,31 +67,35 @@ class CUDAGL:
 		glBindBuffer(GL_ARRAY_BUFFER, 0)
 		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
 
-		y_im_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_im_pbo)
+		yp_tilde_pbo = glGenBuffers(1)
+		glBindBuffer(GL_ARRAY_BUFFER, yp_tilde_pbo)
 		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
 		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_im_pbo = cuda_gl.BufferObject(long(y_im_pbo))
-	
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
+
+		z_tilde_pbo = glGenBuffers(1)
+		glBindBuffer(GL_ARRAY_BUFFER, z_tilde_pbo)
+		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
+		glBindBuffer(GL_ARRAY_BUFFER, 0)
+		pycuda_z_tilde_pbo = cuda_gl.BufferObject(long(z_tilde_pbo))
+
 	def _destroy_PBOs():
-		global y_tilde_pbo, y_im_pbo, pycuda_y_tilde_pbo, pycuda_y_im_pbo
-		for pbo in [y_tilde_pbo, y_im_pbo]:
+		global y_tilde_pbo, yp_tilde_pbo, z_tilde_pbo, pycuda_y_tilde_pbo, pycuda_yp_tilde_pbo, pycuda_z_tilde_pbo
+		for pbo in [y_tilde_pbo, yp_tilde_pbo, z_tilde_pbo]:
 			glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
 			glDeleteBuffers(1, long(pbo));
 			glBindBuffer(GL_ARRAY_BUFFER, 0)
-		y_tilde_pbo,y_im_pbo,pycuda_y_tilde_pbo,pycuda_y_im_pbo = [None]*4    
+		y_tilde_pbo,yp_tilde_pbo,z_tilde_pbo,pycuda_y_tilde_pbo,pycuda_yp_tilde_pbo,pycuda_z_tilde_pbo = [None]*6    
 
-	def z(self, y_im):
-		global pycuda_y_tilde_pbo,y_tilde_pbo, y_im_pbo,pycuda_y_im_pbo
-		assert y_tilde_pbo is not None
-
+	def jz(self, y_im):
+		global pycuda_y_tilde_pbo,y_tilde_pbo, pycuda_yp_tilde_pbo, yp_tilde_pbo, z_tilde_pbo, pycuda_z_tilde_pbo
+		assert yp_tilde_pbo is not None
 		# tell cuda we are going to get into these buffers
-		pycuda_y_tilde_pbo.unregister()
-		pycuda_y_im_pbo.unregister()
-		#Load y_tilde texture info
+		pycuda_yp_tilde_pbo.unregister()
+		#Load yp_tilde texture info
 		#activate y_tilde buffer
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_tilde_pbo))
-		#Needed? (is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl)
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(yp_tilde_pbo))
+		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
 		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
 		#         bytesize,
 		#         None, self.usage)
@@ -102,29 +104,11 @@ class CUDAGL:
 		glActiveTexture(GL_TEXTURE0)
 		glBindTexture(GL_TEXTURE_2D, self.texture.id)
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
-
 		#    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
 		#         w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
-
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
-	
-		#pbo_buffer = glGenBuffers(1) # generate 1 buffer reference
-		#glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_buffer) # binding to this buffer
-		#glBufferData(GL_PIXEL_UNPACK_BUFFER, imWidth*imHeight, pixels, GL_STREAM_DRAW) # Allocate the buffer
-		#bsize = glGetBufferParameteriv(GL_PIXEL_UNPACK_BUFFER, GL_BUFFER_SIZE) # Check allocated buffer size
-		#assert(bsize == imWidth*imHeight)
-		#glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0) # Unbind
-
-		#Load y_im (current frame) info from CPU memory
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_im_pbo))
-		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_im, GL_STREAM_DRAW)
-		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
-		glDisable(GL_TEXTURE_2D)
-
-		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
-		pycuda_y_im_pbo = cuda_gl.BufferObject(long(y_im_pbo))
-	
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))	
 		#run the Cuda kernel
 		z = self._process()
 		return z
@@ -133,40 +117,48 @@ class CUDAGL:
 		""" Use PyCuda """
 		grid_dimensions = (self.width//10,self.height//10)
 		y_tilde_mapping = pycuda_y_tilde_pbo.map()
-		y_im_mapping = pycuda_y_im_pbo.map()
+		yp_tilde_mapping = pycuda_yp_tilde_pbo.map()
+		z_tilde_mapping = pycuda_z_tilde_pbo.map()
 		self.zscore.prepared_call(grid_dimensions, (10, 10, 1),
 				y_tilde_mapping.device_ptr(),
-				y_im_mapping.device_ptr())
+				yp_tilde_mapping.device_ptr(),z_tilde_mapping.device_ptr())
 		cuda_driver.Context.synchronize()
 		y_tilde_mapping.unmap()
-		y_im_mapping.unmap()
-
+		yp_tilde_mapping.unmap()
+		z_tilde_mapping.unmap()
 		#Get result from CUDA...
 		return 0
 
-	#Test code on the CPU
-	def z_CPU(self, y_im):
-		#Copy y_tilde pixels to CPU memory
-		with self._fbo1:
-			y_tilde = gloo.read_pixels()
-			#Not sure why I can't get this one to work...
-			#y_tilde = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
-			#y_tilde = glReadPixels(0, 0, self.width, self.height, GL_RGB, GL_UNSIGNED_BYTE)
-			#y_tilde = np.fromstring(y_tilde, dtype=np.uint8).reshape((self.width, self.height, 3))
-		#print y_tilde.shape 
-		#plt.imshow(y_im-y_tilde[:,:,0]>0),plt.colorbar(),plt.show()
-		#cv2.imshow('',y_im)
-		#k = cv2.waitKey(30) & 0xff
-		#import rpdb2 
-		#rpdb2.start_embedded_debugger("asdf")
-		#so much simpler...
-		if len(y_im.shape) == 3:
-			diff = y_tilde[:,:,0]-y_im[:,:,0]
-		else:
-			diff = y_tilde[:,:,0]-y_im
+	def initjacobian(self, y_im, y_flow):
+		#Compute z = y_im - y_tilde 
+		#Copy z to GPU 
+		#Copy y_tilde to GPU 
 
-		diff = diff# + np.random.normal(size = diff.shape)*self.eps_R
-		z = np.sum(np.multiply(diff, diff)/256./256)#./self.eps_R/self.eps_R)
-		#print z 
-		#input()
-		return z
+		# tell cuda we are going to get into these buffers
+		pycuda_y_tilde_pbo.unregister()
+		pycuda_z_tilde_pbo.unregister()
+
+		#Load y_tilde texture info
+		#activate y_tilde buffer
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_tilde_pbo))
+		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
+		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
+		#         bytesize,
+		#         None, self.usage)
+		#read data into pbo. note: use BGRA format for optimal performance
+		glEnable(GL_TEXTURE_2D)
+		glActiveTexture(GL_TEXTURE0)
+		glBindTexture(GL_TEXTURE_2D, self.texture.id)
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(GL_TEXTURE_2D)
+
+		#Load y_im (current frame) info from CPU memory
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_im_pbo))
+		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_im, GL_STREAM_DRAW)
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(GL_TEXTURE_2D)
+
+		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
+		pycuda_z_tilde_pbo = cuda_gl.BufferObject(long(z_tilde_pbo))
+		return (0,0)
