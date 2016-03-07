@@ -144,7 +144,7 @@ class Renderer(app.Canvas):
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
 
-		self.cudagl = CUDAGL(self._rendertex1, eps_R, self._fbo1)
+		self.cudagl = CUDAGL(self._rendertex1, self._fbo1, cuda)
 
 	def on_resize(self, event):
 		width, height = event.physical_size
@@ -268,24 +268,16 @@ class Renderer(app.Canvas):
 		self.current_texture = gloo.Texture2D(y_im)
 
 	def initjacobian(self, y_im, y_flow):
-		self.cudagl.initjacobian(y_im, y_flow)
+		if self.cuda:
+			self.cudagl.initjacobian(y_im, y_flow)
+		else:
+			self.cudagl.initjacobian_CPU(y_im, y_flow)
 
 	def jz(self):
-		return self.cudagl.jz()
-
-	def observation(self, y_im):
-		self.state.refresh()
-		self.state.render()
-		return self.state.z(y_im)
-
-	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
-		H = np.zeros((1, self.size()))
-		for idx in range(self.state.N*2):
-			self.state.X[idx,0] += deltaX
-			zp = self.observation(y_im)
-			self.state.X[idx,0] -= deltaX
-			H[0,idx] = (z_tilde - zp)/deltaX
-		return H
+		if self.cuda:
+			return self.cudagl.jz()
+		else:
+			return self.cudagl.jz_CPU()
 
 class VideoStream:
 	def __init__(self, fn, threshold):

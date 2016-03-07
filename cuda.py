@@ -25,37 +25,39 @@ import cv2
 from matplotlib import pyplot as plt
 
 class CUDAGL:
-	def __init__(self, texture, fbo):
+	def __init__(self, texture, fbo, cuda):
+		self.cuda = cuda 
 		self._fbo1 = fbo 
 		self.texture = texture
 		self.width = texture.shape[0]
 		self.height = texture.shape[1]
 		self.size = texture.shape
 
-		import pycuda.gl.autoinit
-		import pycuda.gl
-		cuda_gl = pycuda.gl
-		cuda_driver = pycuda.driver
-	
-		cuda_module = SourceModule("""
-		__global__ void zscore(unsigned char *y_tilde, unsigned char *yp_tilde, unsigned char *z)
-		{
-		  int block_num        = blockIdx.x + blockIdx.y * gridDim.x;
-		  int thread_num       = threadIdx.y * blockDim.x + threadIdx.x;
-		  int threads_in_block = blockDim.x * blockDim.y;
-		  //Since the image is RGBA we multiply the index 4.
-		  //We'll only use the first 3 (RGB) channels though
-		  int idx              = 4 * (threads_in_block * block_num + thread_num);
-		  //y_tilde[idx  ] = 255 - y_im[idx  ];
-		  //y_tilde[idx+1] = 255 - y_im[idx+1];
-		  //y_tilde[idx+2] = 255 - y_im[idx+2];
-		}
-		""")
-		self.zscore = cuda_module.get_function("zscore")
-		# The argument "PP" indicates that the zscore function will take two PBOs as arguments
-		self.zscore.prepare("PPP")
-		# create y_tilde and y_im pixel buffer objects for processing
-		self._createPBOs()
+		if self.cuda:
+			import pycuda.gl.autoinit
+			import pycuda.gl
+			cuda_gl = pycuda.gl
+			cuda_driver = pycuda.driver
+		
+			cuda_module = SourceModule("""
+			__global__ void zscore(unsigned char *y_tilde, unsigned char *yp_tilde, unsigned char *z)
+			{
+			  int block_num        = blockIdx.x + blockIdx.y * gridDim.x;
+			  int thread_num       = threadIdx.y * blockDim.x + threadIdx.x;
+			  int threads_in_block = blockDim.x * blockDim.y;
+			  //Since the image is RGBA we multiply the index 4.
+			  //We'll only use the first 3 (RGB) channels though
+			  int idx              = 4 * (threads_in_block * block_num + thread_num);
+			  //y_tilde[idx  ] = 255 - y_im[idx  ];
+			  //y_tilde[idx+1] = 255 - y_im[idx+1];
+			  //y_tilde[idx+2] = 255 - y_im[idx+2];
+			}
+			""")
+			self.zscore = cuda_module.get_function("zscore")
+			# The argument "PP" indicates that the zscore function will take two PBOs as arguments
+			self.zscore.prepare("PPP")
+			# create y_tilde and y_im pixel buffer objects for processing
+			self._createPBOs()
 
 	def _createPBOs(self):
 		global y_tilde_pbo, yp_tilde_pbo, z_tilde_pbo, pycuda_y_tilde_pbo, pycuda_yp_tilde_pbo, pycuda_z_tilde_pbo
@@ -162,3 +164,15 @@ class CUDAGL:
 		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
 		pycuda_z_tilde_pbo = cuda_gl.BufferObject(long(z_tilde_pbo))
 		return (0,0)
+
+	def initjacobian_CPU(self, y_im, y_flow):
+		with self._fbo1:
+			y_tilde = gloo.read_pixels()
+		self.z = y_im - y_tilde 
+		self.y_tilde = y_tilde
+
+	def jz_CPU(self):
+		with self._fbo1:
+			yp_tilde = gloo.read_pixels()
+		hz = np.multiply((yp_tilde-self.y_tilde), self.z)
+		return np.sum(hz)

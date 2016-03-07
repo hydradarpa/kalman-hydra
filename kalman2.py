@@ -76,7 +76,7 @@ class KFState:
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
-		self._initjacobian(y_im, y_flow)
+		self.renderer.initjacobian(y_im, y_flow)
 		for idx in range(self.N*2):
 			self.X[idx,0] += deltaX
 			self.refresh()
@@ -86,17 +86,11 @@ class KFState:
 			self.X[idx,0] -= deltaX
 		return Hz
 
-	def _initjacobian(self, y_im, y_flow):
-		self.renderer.initjacobian(y_im, y_flow)
-
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))
 
 	def velocities(self):
 		return self.X[(2*self.N):].reshape((-1,2))
-
-	def z(self, y):
-		return self.renderer.z(y)
 
 class KalmanFilter:
 	def __init__(self, distmesh, im, cuda):
@@ -104,8 +98,6 @@ class KalmanFilter:
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, cuda)
-		#self.state.M = self.observation(im)
-		#print self.state.M 
 
 	def compute(self, y_im, y_flow = None):
 		self.state.renderer.update_frame(y_im)
@@ -229,9 +221,6 @@ class KFStateMorph(KFState):
 		vel = self.X[2:].reshape((-1,2))
 		K = np.vstack((np.zeros((2,2)), vel))
 		return np.dot(self.T,K)
-
-	def z(self, y):
-		return self.renderer.z(y)
 
 class KalmanFilterMorph(KalmanFilter):
 	def __init__(self, distmesh, im, cuda):
