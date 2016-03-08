@@ -77,7 +77,7 @@ class KFState:
 		self.render()
 		#Set reference image to unperturbed images
 		self.renderer.initjacobian(y_im, y_flow)
-		for idx in range(self.N*2):
+		for idx in range(self.size()):
 			self.X[idx,0] += deltaX
 			self.refresh()
 			self.render()
@@ -101,8 +101,8 @@ class KFState:
 		#Set reference image to unperturbed images
 		self.renderer.initjacobian(y_im, y_flow)
 		#Very inefficient... for now 
-		for i in range(self.N*2):
-			for j in range(self.N*2):
+		for i in range(self.size()):
+			for j in range(self.size()):
 				hij = self.renderer.j(self, deltaX, i, j)
 				HTH[i,j] = hij/deltaX/deltaX
 		return HTH
