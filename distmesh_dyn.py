@@ -24,7 +24,7 @@ class DistMesh:
 		self.deps=np.sqrt(np.finfo(np.double).eps)*h0;
 		self.densityctrlfreq = 1;
 		self.k = 1.5
-		self.maxiter = 300
+		self.maxiter = 400
 		#Force law
 		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
 		self.F = lambda L: -self.k*(L-h0)

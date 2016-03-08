@@ -335,3 +335,31 @@ def test_data_texture(nx, ny):
 		else:
 			video[:,:,i] = imtrans
 	return video 
+
+def test_data_image(fn = './video/milkyway.jpg'):
+	imsrc = cv2.imread(fn,0)
+	nx = imsrc.shape[0]
+	ny = imsrc.shape[1]
+	im = np.zeros((nx, ny), dtype=np.uint8)
+	imsrc = cv2.resize(imsrc,None,fx=1./2, fy=1./2, interpolation = cv2.INTER_CUBIC)
+	width = imsrc.shape[0]
+	height = imsrc.shape[1]
+	start = nx//3
+	im[start:start+width, start:start+height] = imsrc
+
+	nframes = 10
+	speed = 3
+	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
+	flow = np.zeros((nx, ny, 2, nframes), dtype = np.uint8)
+
+	#Translate the box for a few frames
+	for i in range(nframes):
+		start = nx//3-i*speed
+		imtrans = im[speed*i:,speed*i:]
+		if i > 0:
+			flow[start:start+width, start:start+height,0,i] = -speed
+			flow[start:start+width, start:start+height,1,i] = -speed
+			video[:-speed*i,:-speed*i,i] = imtrans 
+		else:
+			video[:,:,i] = imtrans
+	return video, flow 

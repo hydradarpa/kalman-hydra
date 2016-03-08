@@ -152,9 +152,9 @@ class KalmanFilter:
 		W = self.state.W
 		eps_H = self.state.eps_H
 		(Hz, HTH) = self.state.update(y_im, y_flow)
-		print Hz 
-		print HTH
-		invW = np.linalg.inv(W) + HTH/eps_H 
+		#print Hz 
+		#print HTH
+		invW = np.linalg.inv(W) + HTH/eps_H
 		W = np.linalg.inv(invW)
 		self.state.X = X + np.dot(W,Hz)/eps_H
 		self.state.W = W 
