@@ -17,6 +17,7 @@ threshold = 9
 #video = test_data(680, 680)
 #video = test_data_texture(680, 680)
 video, flow = test_data_image()
+flowframe = flow[:,:,:,0]
 frame = video[:,:,0]
 #Make contours
 ##mask, ctrs, fd = capture.backsub()
@@ -24,7 +25,6 @@ distmesh = DistMesh(frame, h0 = gridsize)
 mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame)
 
-flowframe = flow[:,:,:,0]
 kf = KalmanFilter(distmesh, frame, cuda)
 #kf = IteratedKalmanFilter(distmesh, frame, cuda)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)

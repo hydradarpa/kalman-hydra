@@ -16,9 +16,10 @@ class KFState:
 	def __init__(self, distmesh, im, cuda, eps_F = 1, eps_H = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
-		self._vel = np.zeros(self._ver.shape, np.float32)
+		#self._vel = np.zeros(self._ver.shape, np.float32)
 		#For testing we'll give some initial velocity
 		#self._vel = np.ones(self._ver.shape, np.float32)
+		self._vel = np.random.normal(size=self._ver.shape)
 
 		#Set up initial guess for texture
 		self.tex = im

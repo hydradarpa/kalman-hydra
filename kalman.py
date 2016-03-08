@@ -349,8 +349,9 @@ def test_data_image(fn = './video/milkyway.jpg'):
 
 	nframes = 10
 	speed = 3
+	noise = 10
 	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
-	flow = np.zeros((nx, ny, 2, nframes), dtype = np.uint8)
+	flow = np.zeros((nx, ny, 2, nframes))
 
 	#Translate the box for a few frames
 	for i in range(nframes):
@@ -362,4 +363,24 @@ def test_data_image(fn = './video/milkyway.jpg'):
 			video[:-speed*i,:-speed*i,i] = imtrans 
 		else:
 			video[:,:,i] = imtrans
+
+	imnoisex = np.zeros((nx, ny))
+	imnoisey = np.zeros((nx, ny))
+	#Set up a box in the first frame, with some basic changes in intensity
+	start = nx//3
+	end = nx//3+width
+	for i in range(start,end):
+		for j in range(start,end):
+			imnoisex[i,j] = noise*np.random.normal(size = (1,1))
+			imnoisey[i,j] = noise*np.random.normal(size = (1,1))
+	#Add noise
+	#noise = 
+	#Apply Gaussian blur 
+	#im = im + noise 
+	imnoisex = cv2.GaussianBlur(imnoisex,(15,15),0)
+	imnoisey = cv2.GaussianBlur(imnoisey,(15,15),0)
+
+	flow[:,:,0,0] = imnoisex
+	flow[:,:,0,0] = imnoisey
+
 	return video, flow 

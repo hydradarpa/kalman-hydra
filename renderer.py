@@ -20,8 +20,10 @@ attribute vec3 a_velocity;
 attribute vec2 a_texcoord;
 uniform vec4 u_color;
 varying vec4 v_color;
+varying vec3 v_vel;
 
 void main (void) {
+	v_vel = a_velocity;
 	v_color = u_color;
 	// Pass tex coords
 	gl_TexCoord[0] = vec4(a_texcoord.x, a_texcoord.y, 0.0, 0.0);
@@ -60,29 +62,95 @@ void main()
 """
 
 FRAG_SHADER_FLOWX = """ // simple fragment shader
+varying vec3 v_vel;
 varying vec4 v_color;
+const float c_zero = 0.0;
 
 void main()
 {
-	gl_FragColor = v_color;
+	gl_FragColor = vec4(c_zero, c_zero, c_zero, 1.0);
+	gl_FragColor.r = v_vel.x;
 }
 """
 
 FRAG_SHADER_FLOWY = """ // simple fragment shader
+varying vec3 v_vel;
 varying vec4 v_color;
+const float c_zero = 0.0;
 
 void main()
 {
-	gl_FragColor = v_color;
+	gl_FragColor = vec4(c_zero, c_zero, c_zero, 1.0);
+	gl_FragColor.r = v_vel.y;
 }
 """
 
-FRAG_SHADER_FLOW = """ // simple fragment shader
+FRAG_SHADER_FLOW = """ // fragment shader to convert flow to hue/saturation
+varying vec3 v_vel;
 varying vec4 v_color;
 
-void main()
-{
-	gl_FragColor = v_color;
+// relative lengths of color transitions:
+// these are chosen based on perceptual similarity
+// (e.g. one can distinguish more shades between red and yellow
+//  than between yellow and green)
+const int RY = 15;
+const int YG = 6;
+const int GC = 4;
+const int CB = 11;
+const int BM = 13;
+const int MR = 6;
+const int NCOLS = RY + YG + GC + CB + BM + MR;
+vec3 colorWheel[NCOLS];
+
+const float maxrad = 5;
+const float PI = 3.14159265;
+
+void main() {
+	float fx = v_vel.x;
+	float fy = v_vel.y;
+	int k = 0;
+	for (int i = 0; i < RY; ++i, ++k)
+		colorWheel[k] = vec3(255, 255 * i / RY, 0);
+	for (int i = 0; i < YG; ++i, ++k)
+		colorWheel[k] = vec3(255 - 255 * i / YG, 255, 0);
+	for (int i = 0; i < GC; ++i, ++k)
+		colorWheel[k] = vec3(0, 255, 255 * i / GC);
+	for (int i = 0; i < CB; ++i, ++k)
+		colorWheel[k] = vec3(0, 255 - 255 * i / CB, 255);
+	for (int i = 0; i < BM; ++i, ++k)
+		colorWheel[k] = vec3(255 * i / BM, 0, 255);
+	for (int i = 0; i < MR; ++i, ++k)
+		colorWheel[k] = vec3(255, 0, 255 - 255 * i / MR);
+	float rad = sqrt(fx * fx + fy * fy);
+	float a = atan(-fy, -fx) / PI;
+	float fk = (a + 1.0f) / 2.0f * (NCOLS - 1);
+	int k0 = int(fk);
+	int k1 = int(mod(k0 + 1, NCOLS));
+	float f = fk - k0;
+	vec3 pix;
+	for (int b = 0; b < 3; b++)
+	{
+		float col0 = colorWheel[k0][b] / 255.0f;
+		float col1 = colorWheel[k1][b] / 255.0f;
+		float col = (1 - f) * col0 + f * col1;
+		if (rad <= maxrad)
+			col = rad * col / maxrad; // increase saturation with radius
+		//else
+		//	col *= .75; // out of range
+		pix[2 - b] = col;
+	}
+
+	gl_FragColor.rgb = pix;
+	gl_FragColor.a = 1.0;
+
+	/* //Simple shader
+	vec3 pix;
+	pix.r = (fx+5)/10;
+	pix.g = (fy+5)/10;
+	pix.b = 0.0;
+	gl_FragColor.rgb = pix;
+	gl_FragColor.a = 1.0;
+	*/
 }
 """
 
@@ -132,8 +200,8 @@ class Renderer(app.Canvas):
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
 		self._rendertex1 = gloo.Texture2D((self.shape + (3,)))
-		self._rendertex2 = gloo.Texture2D((self.shape + (3,)), format="luminance", internalformat="GL_R8")
-		self._rendertex3 = gloo.Texture2D((self.shape + (3,)))
+		self._rendertex2 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
+		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
@@ -170,6 +238,8 @@ class Renderer(app.Canvas):
 		#Summary render to main screen
 		if self.state == 'texture' or self.state == 'raw':
 			self._program.draw('triangles', self.indices_buffer)
+		elif self.state == 'flow':
+			self._program_flow.draw('triangles', self.indices_buffer)			
 		else:
 			self._program_red['texture1'] = self.current_texture
 			self._program_red.bind(self._quad)
@@ -183,17 +253,19 @@ class Renderer(app.Canvas):
 
 	def on_key_press(self, event):
 		if event.key in [' ']:
-			if self.state == 'texture':
+			if self.state == 'flow':
 				self.state = 'raw'
 			elif self.state == 'raw':
 				self.state = 'overlay'
-			else:
+			elif self.state == 'overlay':
 				self.state = 'texture'
+			else:
+				self.state = 'flow'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 			self.update()
 		if event.key in ['s']:
 			pixels = gloo.read_pixels()
-			fn = './screenshot' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			fn = './screenshot_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
 
@@ -204,7 +276,8 @@ class Renderer(app.Canvas):
 		#rescale
 		verdata[:,0:2] = 2*vertices/self.nx-1
 		verdata[:,1] = -verdata[:,1]
-		veldata[:,0:2] = 2*velocities/self.nx-1
+		#veldata[:,0:2] = 2*velocities/self.nx-1
+		veldata[:,0:2] = velocities
 		veldata[:,1] = -veldata[:,1]
 		self.vertex_data['a_position'] = verdata
 		self.vertex_data['a_velocity'] = veldata 
@@ -213,6 +286,7 @@ class Renderer(app.Canvas):
 		self._program_lines.bind(self._vbo)
 		self._program_flowx.bind(self._vbo)
 		self._program_flowy.bind(self._vbo)
+		self._program_flow.bind(self._vbo)
 
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx):
@@ -229,7 +303,8 @@ class Renderer(app.Canvas):
 		#rescale
 		verdata[:,0:2] = 2*vertices/nx-1
 		verdata[:,1] = -verdata[:,1]
-		veldata[:,0:2] = 2*velocities/nx-1
+		#veldata[:,0:2] = 2*velocities/nx-1
+		veldata[:,0:2] = velocities
 		veldata[:,1] = -veldata[:,1]
 		uvdata = vertices/nx
 		vertex_data['a_position'] = verdata

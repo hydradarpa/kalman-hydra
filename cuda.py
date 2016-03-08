@@ -13,10 +13,13 @@ from OpenGL.GLU import *
 from OpenGL.GL.ARB.vertex_buffer_object import *
 from OpenGL.GL.ARB.pixel_buffer_object import *
 
-import pycuda.driver as cuda_driver
-import pycuda.gl as cuda_gl
-import pycuda
-from pycuda.compiler import SourceModule
+try:
+	import pycuda.driver as cuda_driver
+	import pycuda.gl as cuda_gl
+	import pycuda
+	from pycuda.compiler import SourceModule
+except:
+	print "pycuda not installed"
 
 from vispy import gloo 
 
