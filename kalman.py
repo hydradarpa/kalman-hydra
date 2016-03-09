@@ -266,6 +266,10 @@ def test_data(nx, ny):
 	#Set up a box in the first frame, with some basic changes in intensity
 	start = nx//3
 	end = 2*nx//3
+	width = end-start
+	height = end - start
+	flow = np.zeros((nx, ny, 2, nframes))
+
 	for i in range(start,end):
 		for j in range(start,end):
 			if i > j:
@@ -277,10 +281,12 @@ def test_data(nx, ny):
 	for i in range(nframes):
 		imtrans = im[speed*i:,speed*i:]
 		if i > 0:
+			flow[start:start+width, start:start+height,0,i] = -speed
+			flow[start:start+width, start:start+height,1,i] = -speed
 			video[:-speed*i,:-speed*i,i] = imtrans 
 		else:
 			video[:,:,i] = imtrans
-	return video 
+	return video, flow
 
 def test_data_up(nx, ny):
 	nframes = 30

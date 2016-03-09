@@ -13,13 +13,13 @@ from renderer import Renderer
 import pdb
 
 class KFState:
-	def __init__(self, distmesh, im, cuda, eps_F = 1, eps_H = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
-		#self._vel = np.zeros(self._ver.shape, np.float32)
+		self._vel = np.zeros(self._ver.shape, np.float32)
 		#For testing we'll give some initial velocity
 		#self._vel = np.ones(self._ver.shape, np.float32)
-		self._vel = np.random.normal(size=self._ver.shape)
+		#self._vel = np.random.normal(size=self._ver.shape)
 
 		#Set up initial guess for texture
 		self.tex = im
@@ -56,7 +56,7 @@ class KFState:
 		self.W = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, self.nx, im, cuda)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
@@ -118,16 +118,16 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, cuda):
+	def __init__(self, distmesh, im, flow, cuda):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, cuda)
+		self.state = KFState(distmesh, im, flow, cuda)
 
 	def compute(self, y_im, y_flow = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		self.predict()
-		self.update(y_im, y_flow = None)
+		self.update(y_im, y_flow)
 
 	def predict(self):
 		print 'Predicting'
@@ -164,8 +164,8 @@ class KalmanFilter:
 		self.state.W = W 
 
 class IteratedKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, cuda):
-		KalmanFilter.__init__(self, distmesh, im, cuda)
+	def __init__(self, distmesh, im, flow, cuda):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda)
 		self.nI = 100
 
 	def update(self, y_im, y_flow = None):
@@ -182,7 +182,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		self.state.W = np.linalg.inv(invW)
 
 class KFStateMorph(KFState):
-	def __init__(self, distmesh, im, cuda, eps_Q = 1, eps_R = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#Morph basis connecting mesh points to morph bases
@@ -230,7 +230,7 @@ class KFStateMorph(KFState):
 		self.P = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self.V, self.nx, im, self.eps_R, cuda)
+		self.renderer = Renderer(distmesh, self.V, flow, self.nx, im, self.eps_R, cuda)
 
 	def _generate_morph_basis(self, distmesh):
 		#import rpdb2 
@@ -251,11 +251,11 @@ class KFStateMorph(KFState):
 		return np.dot(self.T,K)
 
 class KalmanFilterMorph(KalmanFilter):
-	def __init__(self, distmesh, im, cuda):
+	def __init__(self, distmesh, im, flow, cuda):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFStateMorph(distmesh, im, cuda)
+		self.state = KFStateMorph(distmesh, im, flow, cuda)
 
 	def linearize_obs(self, z_tilde, y_im, deltaX = 2):
 		H = np.zeros((self.state.M, self.size()))

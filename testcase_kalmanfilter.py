@@ -11,16 +11,16 @@ import time
 import cv2 
 
 import numpy as np 
-import matplotlib.image as mpimg
+#import matplotlib.image as mpimg
 import matplotlib.pyplot as plot 
 
 cuda = False 
 gridsize = 80
 threshold = 9
 
-#video, flow = test_data(680, 680)
+video, flow = test_data(680, 680)
 #video, flow = test_data_texture(680, 680)
-video, flow = test_data_image()
+#video, flow = test_data_image()
 flowframe = flow[:,:,:,0]
 frame = video[:,:,0]
 #Make contours
@@ -29,10 +29,10 @@ distmesh = DistMesh(frame, h0 = gridsize)
 mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame)
 
-kf = KalmanFilter(distmesh, frame, cuda)
-(flowx, flowy) = kf.state.get_flow()
-print np.max(flowx[:,:,0]), np.max(flowx[:,:,1]), np.max(flowx[:,:,2])
-print np.min(flowx[:,:,0]), np.min(flowx[:,:,1]), np.min(flowx[:,:,2])
+kf = KalmanFilter(distmesh, frame, flowframe, cuda)
+#(flowx, flowy) = kf.state.get_flow()
+#print np.max(flowx[:,:,0]), np.max(flowx[:,:,1]), np.max(flowx[:,:,2])
+#print np.min(flowx[:,:,0]), np.min(flowx[:,:,1]), np.min(flowx[:,:,2])
 
 #kf = IteratedKalmanFilter(distmesh, frame, cuda)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)

@@ -28,9 +28,11 @@ import cv2
 from matplotlib import pyplot as plt
 
 class CUDAGL:
-	def __init__(self, texture, fbo, cuda):
+	def __init__(self, texture, fbo, fbo_fx, fbo_fy, cuda):
 		self.cuda = cuda 
 		self._fbo1 = fbo 
+		self._fbo2 = fbo_fx 
+		self._fbo3 = fbo_fy 
 		self.texture = texture
 		self.width = texture.shape[0]
 		self.height = texture.shape[1]
@@ -171,16 +173,28 @@ class CUDAGL:
 	def initjacobian_CPU(self, y_im, y_flow):
 		with self._fbo1:
 			y_tilde = gloo.read_pixels()[:,:,0]
+		with self._fbo2:
+			y_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		with self._fbo3:
+			y_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
-		#plt.imshow(self.z)
 		self.y_tilde = y_tilde.astype(float)/255
+		self.zfx = y_flow[:,:,0] - y_fx_tilde
+		self.y_fx_tilde = y_fx_tilde
+		self.zfy = y_flow[:,:,1] - y_fy_tilde
+		self.y_fy_tilde = y_fy_tilde
 
 	def jz_CPU(self):
 		with self._fbo1:
 			yp_tilde = gloo.read_pixels()[:,:,0]
+		with self._fbo2:
+			yp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		with self._fbo3:
+			yp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
-
-		return np.sum(hz)
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
+		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
 
 	def j_CPU(self, state, deltaX, i, j):
 		state.X[i,0] += deltaX
@@ -189,6 +203,10 @@ class CUDAGL:
 		state.X[i,0] -= deltaX
 		with self._fbo1:
 			yp_tilde = gloo.read_pixels()[:,:,0]
+		with self._fbo2:
+			yp_fx_tilde = gloo.read_pixels()[:,:,0]
+		with self._fbo3:
+			yp_fy_tilde = gloo.read_pixels()[:,:,0]
 
 		state.X[j,0] += deltaX
 		state.refresh()
@@ -196,5 +214,11 @@ class CUDAGL:
 		state.X[j,0] -= deltaX
 		with self._fbo1:
 			ypp_tilde = gloo.read_pixels()[:,:,0]
+		with self._fbo2:
+			ypp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		with self._fbo3:
+			ypp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))		
-		return np.sum(hz)
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
+		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
+		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)

@@ -186,6 +186,11 @@ class Renderer(app.Canvas):
 		self.current_texture = gloo.Texture2D(im1)
 		self.init_texture = gloo.Texture2D(im1)
 
+		self.current_flowx = flow[:,:,0]
+		self.current_flowy = flow[:,:,1]
+		self.current_fx_texture = gloo.Texture2D(flow[:,:,0], format="luminance", internalformat="r32f")
+		self.current_fy_texture = gloo.Texture2D(flow[:,:,1], format="luminance", internalformat="r32f")
+
 		#Setup programs
 		self._program = gloo.Program(VERT_SHADER, FRAG_SHADER)
 		self._program['texture1'] = self.init_texture
@@ -221,7 +226,7 @@ class Renderer(app.Canvas):
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
 
-		self.cudagl = CUDAGL(self._rendertex1, self._fbo1, cuda)
+		self.cudagl = CUDAGL(self._rendertex1, self._fbo1, self._fbo2, self._fbo3, cuda)
 
 	def on_resize(self, event):
 		width, height = event.physical_size
@@ -357,9 +362,9 @@ class Renderer(app.Canvas):
 		self.current_frame = y_im 
 		self.current_texture = gloo.Texture2D(y_im)
 		self.current_flowx = y_flow[:,:,0] 
-		self.current_fx_texture = gloo.Texture2D(y_flow[:,:,0])
+		self.current_fx_texture = gloo.Texture2D(y_flow[:,:,0], format="luminance", internalformat="r32f")
 		self.current_flowy = y_flow[:,:,1] 
-		self.current_fy_texture = gloo.Texture2D(y_flow[:,:,1])
+		self.current_fy_texture = gloo.Texture2D(y_flow[:,:,1], format="luminance", internalformat="r32f")
 
 	def get_flow(self):
 		self.on_draw(None)
