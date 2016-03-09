@@ -10,12 +10,16 @@ import pdb
 import time 
 import cv2 
 
+import numpy as np 
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plot 
+
 cuda = False 
 gridsize = 80
 threshold = 9
 
-#video = test_data(680, 680)
-#video = test_data_texture(680, 680)
+#video, flow = test_data(680, 680)
+#video, flow = test_data_texture(680, 680)
 video, flow = test_data_image()
 flowframe = flow[:,:,:,0]
 frame = video[:,:,0]
@@ -26,6 +30,10 @@ mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame)
 
 kf = KalmanFilter(distmesh, frame, cuda)
+(flowx, flowy) = kf.state.get_flow()
+print np.max(flowx[:,:,0]), np.max(flowx[:,:,1]), np.max(flowx[:,:,2])
+print np.min(flowx[:,:,0]), np.min(flowx[:,:,1]), np.min(flowx[:,:,2])
+
 #kf = IteratedKalmanFilter(distmesh, frame, cuda)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 kf.compute(frame, flowframe)

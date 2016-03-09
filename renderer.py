@@ -64,14 +64,22 @@ void main()
 FRAG_SHADER_FLOWX = """ // simple fragment shader
 varying vec3 v_vel;
 varying vec4 v_color;
-const float c_zero = 0.0;
+float c_zero = 0.0;
 
 void main()
 {
 	gl_FragColor = vec4(c_zero, c_zero, c_zero, 1.0);
 	gl_FragColor.r = v_vel.x;
+
+	//vec3 pix;
+	//pix.r = v_vel.x;//+5)/10;
+	//pix.g = v_vel.y;//+5)/10;
+	//pix.b = 0.0;
+	//gl_FragColor.rgb = pix;
+	//gl_FragColor.a = 1.0;
 }
 """
+
 
 FRAG_SHADER_FLOWY = """ // simple fragment shader
 varying vec3 v_vel;
@@ -165,7 +173,7 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, nx, im1, cuda):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda):
 		self.cuda = cuda
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
@@ -269,6 +277,12 @@ class Renderer(app.Canvas):
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
 
+			with self._fbo2:
+				pixels = gloo.read_pixels()
+				fn = './screenshot_flowx_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+				print 'Saving flowx buffer screenshot to ' + fn
+				cv2.imwrite(fn, pixels)
+
 
 	def update_vertex_buffer(self, vertices, velocities):
 		verdata = np.zeros((self.nP,3))
@@ -339,9 +353,21 @@ class Renderer(app.Canvas):
 
 		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer
 
-	def update_frame(self, y_im):
+	def update_frame(self, y_im, y_flow):
 		self.current_frame = y_im 
 		self.current_texture = gloo.Texture2D(y_im)
+		self.current_flowx = y_flow[:,:,0] 
+		self.current_fx_texture = gloo.Texture2D(y_flow[:,:,0])
+		self.current_flowy = y_flow[:,:,1] 
+		self.current_fy_texture = gloo.Texture2D(y_flow[:,:,1])
+
+	def get_flow(self):
+		self.on_draw(None)
+		with self._fbo2:
+			flowx = gloo.read_pixels(out_type = np.float32)
+		with self._fbo3:
+			flowy = gloo.read_pixels(out_type = np.float32)
+		return (flowx, flowy)
 
 	def initjacobian(self, y_im, y_flow):
 		if self.cuda:

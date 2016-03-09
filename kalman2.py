@@ -58,6 +58,9 @@ class KFState:
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, self.nx, im, cuda)
 
+	def get_flow(self):
+		return self.renderer.get_flow()
+
 	def size(self):
 		return self.X.shape[0]
 
@@ -122,7 +125,7 @@ class KalmanFilter:
 		self.state = KFState(distmesh, im, cuda)
 
 	def compute(self, y_im, y_flow = None):
-		self.state.renderer.update_frame(y_im)
+		self.state.renderer.update_frame(y_im, y_flow)
 		self.predict()
 		self.update(y_im, y_flow = None)
 
