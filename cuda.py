@@ -204,9 +204,9 @@ class CUDAGL:
 		with self._fbo1:
 			yp_tilde = gloo.read_pixels()[:,:,0]
 		with self._fbo2:
-			yp_fx_tilde = gloo.read_pixels()[:,:,0]
+			yp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		with self._fbo3:
-			yp_fy_tilde = gloo.read_pixels()[:,:,0]
+			yp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
 
 		state.X[j,0] += deltaX
 		state.refresh()

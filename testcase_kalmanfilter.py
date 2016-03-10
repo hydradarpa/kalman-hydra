@@ -18,6 +18,7 @@ cuda = False
 gridsize = 100
 threshold = 9
 
+name = 'test_data'
 video, flow = test_data(680, 680)
 #video, flow = test_data_texture(680, 680)
 #video, flow = test_data_image()
@@ -30,13 +31,9 @@ mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame)
 
 kf = KalmanFilter(distmesh, frame, flowframe, cuda)
-#(flowx, flowy) = kf.state.get_flow()
-#print np.max(flowx[:,:,0]), np.max(flowx[:,:,1]), np.max(flowx[:,:,2])
-#print np.min(flowx[:,:,0]), np.min(flowx[:,:,1]), np.min(flowx[:,:,2])
-
 #kf = IteratedKalmanFilter(distmesh, frame, cuda)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
-kf.compute(frame, flowframe)
+
 nF = video.shape[2]
 nI = 10
 count = 0
@@ -49,5 +46,5 @@ for i in range(nF):
 	time.sleep(0.3)
 	cv2.waitKey(0)
 		#raw_input("--Iteration %d Finished. Press Enter to continue" % j)
-	kf.compute(frame, flowframe)
+	kf.compute(frame, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
 	#kf.compute(grayframe, flowframe)

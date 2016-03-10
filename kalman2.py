@@ -106,9 +106,11 @@ class KFState:
 		self.renderer.initjacobian(y_im, y_flow)
 		#Very inefficient... for now 
 		for i in range(self.size()):
-			for j in range(self.size()):
+			for j in range(i, self.size()):
 				hij = self.renderer.j(self, deltaX, i, j)
 				HTH[i,j] = hij/deltaX/deltaX
+				#Fill in the other diagonal
+				HTH[j,i] = HTH[i,j]
 		return HTH
 
 	def vertices(self):
@@ -124,10 +126,13 @@ class KalmanFilter:
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, flow, cuda)
 
-	def compute(self, y_im, y_flow = None):
+	def compute(self, y_im, y_flow = None, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		self.predict()
-		#self.update(y_im, y_flow)
+		self.update(y_im, y_flow)
+		#Save state of each frame
+		if imageoutput is not None:
+			self.state.renderer.screenshot(saveall=True, basename = imageoutput)
 
 	def predict(self):
 		print 'Predicting'

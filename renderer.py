@@ -277,16 +277,38 @@ class Renderer(app.Canvas):
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 			self.update()
 		if event.key in ['s']:
+			self.screenshot()
+
+	def screenshot(self, saveall = False, basename = 'screenshot'):
+
+		with self._fbo2:
+			pixels = gloo.read_pixels(out_type = np.float32)
+			fn = './' + basename + '_flowx_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			print 'Saving flowx buffer screenshot to ' + fn
+			cv2.imwrite(fn, pixels)
+		with self._fbo3:
+			pixels = gloo.read_pixels(out_type = np.float32)
+			fn = './' + basename + '_flowy_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			print 'Saving flowy buffer screenshot to ' + fn
+			cv2.imwrite(fn, pixels)
+		
+		if not saveall:
 			pixels = gloo.read_pixels()
-			fn = './screenshot_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			fn = './' + basename + '_' + self.state + '_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
-
-			with self._fbo2:
+		else:
+			oldstate = self.state
+			#change render mode, rerender, and save
+			for state in ['flow', 'raw', 'overlay', 'texture']:
+				self.state = state
+				self.on_draw(None)
 				pixels = gloo.read_pixels()
-				fn = './screenshot_flowx_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
-				print 'Saving flowx buffer screenshot to ' + fn
+				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+				print 'Saving screenshot to ' + fn
 				cv2.imwrite(fn, pixels)
+			self.state = oldstate
+			self.update()
 
 
 	def update_vertex_buffer(self, vertices, velocities):
