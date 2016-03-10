@@ -16,9 +16,9 @@ class KFState:
 	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
-		self._vel = np.zeros(self._ver.shape, np.float32)
+		#self._vel = np.zeros(self._ver.shape, np.float32)
 		#For testing we'll give some initial velocity
-		#self._vel = np.ones(self._ver.shape, np.float32)
+		self._vel = -3*np.ones(self._ver.shape, np.float32)
 		#self._vel = np.random.normal(size=self._ver.shape)
 
 		#Set up initial guess for texture
@@ -127,7 +127,7 @@ class KalmanFilter:
 	def compute(self, y_im, y_flow = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		self.predict()
-		self.update(y_im, y_flow)
+		#self.update(y_im, y_flow)
 
 	def predict(self):
 		print 'Predicting'

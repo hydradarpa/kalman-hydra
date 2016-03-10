@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plot 
 
 cuda = False 
-gridsize = 80
+gridsize = 100
 threshold = 9
 
 video, flow = test_data(680, 680)

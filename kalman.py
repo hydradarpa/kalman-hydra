@@ -281,8 +281,9 @@ def test_data(nx, ny):
 	for i in range(nframes):
 		imtrans = im[speed*i:,speed*i:]
 		if i > 0:
-			flow[start:start+width, start:start+height,0,i] = -speed
-			flow[start:start+width, start:start+height,1,i] = -speed
+			s = start - speed*i
+			flow[s:s+width, s:s+height,0,i] = -speed
+			flow[s:s+width, s:s+height,1,i] = -speed
 			video[:-speed*i,:-speed*i,i] = imtrans 
 		else:
 			video[:,:,i] = imtrans
