@@ -36,11 +36,13 @@ distmesh = DistMesh(frame, h0 = gridsize)
 
 mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 distmesh.createMesh(ctrs, h, frame, plot=True)
-distmesh.p = np.array([[ 226., 453.],
-       [ 453., 226.],
-       [ 453., 453.]])
-distmesh.t = np.array([[0, 1, 2]])
-distmesh.N = 3
+
+#Simplify things further... just one triangle
+#distmesh.p = np.array([[ 226., 453.],
+#       [ 453., 226.],
+#       [ 453., 453.]])
+#distmesh.t = np.array([[0, 1, 2]])
+#distmesh.N = 3
 
 #Correct the coordinates, save the data for unit test code purposes...
 nx = 680
