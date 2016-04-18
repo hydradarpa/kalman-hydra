@@ -17,7 +17,6 @@ import matplotlib.pyplot as plot
 cuda = False 
 gridsize = 80
 threshold = 9
-
 name = 'test_data'
 video, flow = test_data(680, 680)
 #video, flow = test_data_texture(680, 680)
