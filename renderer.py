@@ -318,7 +318,7 @@ class Renderer(app.Canvas):
 
 		e_im = np.sum(np.multiply(y_im-pixels[:,:,0], y_im-pixels[:,:,0]))
 		e_fx = np.sum(np.multiply(y_flow[:,:,0]-fx[:,:,0], y_flow[:,:,0]-fx[:,:,0]))
-		e_fy = np.sum(np.multiply(y_flow[:,:,1]-fy[:,:,0], y_flow[:,:,1]-fy[:,:,0]))
+		e_fy = np.sum(np.multiply(y_flow[:,:,1]+fy[:,:,0], y_flow[:,:,1]+fy[:,:,0]))
 		return e_im, e_fx, e_fy, fx, fy
 
 	def update_vertex_buffer(self, vertices, velocities):

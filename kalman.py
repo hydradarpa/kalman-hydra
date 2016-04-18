@@ -273,7 +273,7 @@ def test_data(nx, ny):
 	for i in range(start,end):
 		for j in range(start,end):
 			if i > j:
-				col = 2
+				col = 128
 			else:
 				col = 255
 			im[i,j] = col
