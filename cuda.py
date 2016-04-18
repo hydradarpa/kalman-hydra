@@ -170,30 +170,29 @@ class CUDAGL:
 		pycuda_z_tilde_pbo = cuda_gl.BufferObject(long(z_tilde_pbo))
 		return (0,0)
 
-	def initjacobian_CPU(self, y_im, y_flow):
+	def get_pixel_data(self):
 		with self._fbo1:
-			y_tilde = gloo.read_pixels()[:,:,0]
+			a = gloo.read_pixels()[:,:,0]
 		with self._fbo2:
-			y_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+			b = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		with self._fbo3:
-			y_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+			c = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		return (a, b, c)
+
+	def initjacobian_CPU(self, y_im, y_flow):
+		(y_tilde, y_fx_tilde, y_fy_tilde) = self.get_pixel_data()
 		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
 		self.y_tilde = y_tilde.astype(float)/255
 		self.zfx = y_flow[:,:,0] - y_fx_tilde
 		self.y_fx_tilde = y_fx_tilde
-		self.zfy = y_flow[:,:,1] - y_fy_tilde
+		self.zfy = y_flow[:,:,1] + y_fy_tilde
 		self.y_fy_tilde = y_fy_tilde
 
 	def jz_CPU(self):
-		with self._fbo1:
-			yp_tilde = gloo.read_pixels()[:,:,0]
-		with self._fbo2:
-			yp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		with self._fbo3:
-			yp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
 		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
 		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
-		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
 		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
 
 	def j_CPU(self, state, deltaX, i, j):
@@ -201,24 +200,13 @@ class CUDAGL:
 		state.refresh()
 		state.render()
 		state.X[i,0] -= deltaX
-		with self._fbo1:
-			yp_tilde = gloo.read_pixels()[:,:,0]
-		with self._fbo2:
-			yp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		with self._fbo3:
-			yp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
-
+		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
 		state.X[j,0] += deltaX
 		state.refresh()
 		state.render()
 		state.X[j,0] -= deltaX
-		with self._fbo1:
-			ypp_tilde = gloo.read_pixels()[:,:,0]
-		with self._fbo2:
-			ypp_fx_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		with self._fbo3:
-			ypp_fy_tilde = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))		
+		(ypp_tilde, ypp_fx_tilde, ypp_fy_tilde) = self.get_pixel_data()
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
 		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
 		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
 		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)

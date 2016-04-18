@@ -13,13 +13,16 @@ from renderer import Renderer
 import pdb
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3, vel = None):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
-		#For testing we'll give some initial velocity
-		self._vel = -3*np.ones(self._ver.shape, np.float32)
-		#self._vel = np.random.normal(size=self._ver.shape)
+		if vel is None:
+			self._vel = np.zeros(self._ver.shape, np.float32)
+			#For testing we'll give some initial velocity
+			#self._vel = -3*np.ones(self._ver.shape, np.float32)
+		else:
+			self._vel = vel.reshape(self._ver.shape)
 
 		#Set up initial guess for texture
 		self.tex = im
@@ -96,6 +99,8 @@ class KFState:
 			Hz[idx,0] -= hz/deltaX
 			self.X[idx,0] += deltaX
 			Hz[idx,0] = Hz[idx,0]/2
+		self.refresh() 
+		self.render()
 		return Hz
 
 	def _hessian(self, y_im, y_flow, deltaX = 2):
@@ -111,6 +116,8 @@ class KFState:
 				HTH[i,j] = hij/deltaX/deltaX
 				#Fill in the other diagonal
 				HTH[j,i] = HTH[i,j]
+		self.refresh() 
+		self.render()
 		return HTH
 
 	def vertices(self):
@@ -120,19 +127,22 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, flow, cuda):
+	def __init__(self, distmesh, im, flow, cuda, vel = None):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, flow, cuda)
+		self.state = KFState(distmesh, im, flow, cuda, vel=vel)
 
-	def compute(self, y_im, y_flow = None, imageoutput = None):
+	def compute(self, y_im, y_flow, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		self.predict()
 		self.update(y_im, y_flow)
+		print self.state.X 
 		#Save state of each frame
 		if imageoutput is not None:
 			self.state.renderer.screenshot(saveall=True, basename = imageoutput)
+		#Compute error between predicted image and actual frames
+		return self.error(y_im, y_flow)
 
 	def predict(self):
 		print 'Predicting'
@@ -153,7 +163,7 @@ class KalmanFilter:
 		#State space size
 		return self.N*4
 
-	def update(self, y_im, y_flow = None):
+	def update(self, y_im, y_flow):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 		print 'Updating'
@@ -161,12 +171,17 @@ class KalmanFilter:
 		W = self.state.W
 		eps_H = self.state.eps_H
 		(Hz, HTH) = self.state.update(y_im, y_flow)
+		np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 		#print Hz 
 		#print HTH
 		invW = np.linalg.inv(W) + HTH/eps_H
 		W = np.linalg.inv(invW)
 		self.state.X = X + np.dot(W,Hz)/eps_H
 		self.state.W = W 
+
+	def error(self, y_im, y_flow):
+		#Compute error of current state and current images and flow data
+		return self.state.renderer.error(self.state, y_im, y_flow)
 
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, flow, cuda):

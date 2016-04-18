@@ -267,23 +267,26 @@ def test_data(nx, ny):
 	start = nx//3
 	end = 2*nx//3
 	width = end-start
-	height = end - start
+	height = end-start
 	flow = np.zeros((nx, ny, 2, nframes))
 
 	for i in range(start,end):
 		for j in range(start,end):
 			if i > j:
-				col = 128
+				col = 2
 			else:
 				col = 255
 			im[i,j] = col
+	im = np.flipud(im)
 	#Translate the box for a few frames
 	for i in range(nframes):
 		imtrans = im[speed*i:,speed*i:]
+		s = start-speed*i
+		flow[s:s+width, s:s+height,0,i] = -speed
+		flow[s:s+width, s:s+height,1,i] = -speed
+		#flow[s:s+width, s:s+height,0,i] = -speed
+		#flow[s:s+width, s:s+height,1,i] = -speed
 		if i > 0:
-			s = start - speed*i
-			flow[s:s+width, s:s+height,0,i] = -speed
-			flow[s:s+width, s:s+height,1,i] = -speed
 			video[:-speed*i,:-speed*i,i] = imtrans 
 		else:
 			video[:,:,i] = imtrans

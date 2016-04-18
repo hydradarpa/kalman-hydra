@@ -9,6 +9,8 @@ from imgproc import drawGrid
 
 class DistMesh:
 	def __init__(self, frame, h0 = 35, dptol = 0.01):
+		self.bars = None 
+		self.frame = frame 
 		self.dptol = dptol
 		self.h0 = h0
 		self.N = 0
@@ -24,12 +26,20 @@ class DistMesh:
 		self.deps=np.sqrt(np.finfo(np.double).eps)*h0;
 		self.densityctrlfreq = 1;
 		self.k = 1.5
-		self.maxiter = 400
+		self.maxiter = 500
 		#Force law
 		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
 		self.F = lambda L: -self.k*(L-h0)
 
+	def plot(self):
+		fc = self.frame.copy()
+		if self.bars is not None:
+			drawGrid(fc, self.p, self.bars)
+			cv2.imshow('Current mesh',fc)
+			k = cv2.waitKey(30) & 0xff
+
 	def createMesh(self, ctrs, fd, frame, plot = False):
+		self.frame = frame 
 		pfix = None 
 	
 		# Extract bounding box
@@ -95,7 +105,7 @@ class DistMesh:
 			barvec = p[bars[:,0]] - p[bars[:,1]]         # List of bar vectors
 			L = np.sqrt((barvec**2).sum(1))              # L = Bar lengths
 			hbars = self.fh(p[bars].sum(1)/2)
-			L0 = 1.4*self.h0*np.ones_like(L); #(hbars*Fscale
+			L0 = 1.5*self.h0*np.ones_like(L); #(hbars*Fscale
 						#*np.sqrt((L**2).sum()/(hbars**2).sum()))  # L0 = Desired lengths
 		
 			F = self.k*(L0-L)

@@ -182,7 +182,7 @@ class Renderer(app.Canvas):
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
 		self._quad = gloo.VertexBuffer(self.quad_data)
-		self.current_frame = im1 
+		self.current_frame = im1
 		self.current_texture = gloo.Texture2D(im1)
 		self.init_texture = gloo.Texture2D(im1)
 
@@ -225,7 +225,6 @@ class Renderer(app.Canvas):
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
-
 		self.cudagl = CUDAGL(self._rendertex1, self._fbo1, self._fbo2, self._fbo3, cuda)
 
 	def on_resize(self, event):
@@ -234,15 +233,15 @@ class Renderer(app.Canvas):
 
 	def on_draw(self, event):
 		#Render the current positions to FBO1 
-		gloo.clear()
 		with self._fbo1:
+			gloo.clear()
 			self._program.draw('triangles', self.indices_buffer)
 		#Render the current velocities to FBO2
-		gloo.clear()
 		with self._fbo2:
+			gloo.clear()
 			self._program_flowx.draw('triangles', self.indices_buffer)
-		gloo.clear()
 		with self._fbo3:
+			gloo.clear()
 			self._program_flowy.draw('triangles', self.indices_buffer)
 
 		#Turn on additive blending
@@ -280,21 +279,18 @@ class Renderer(app.Canvas):
 			self.screenshot()
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
-
 		with self._fbo2:
-			pixels = gloo.read_pixels(out_type = np.float32)
-			fn = './' + basename + '_flowx_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
-			print 'Saving flowx buffer screenshot to ' + fn
-			cv2.imwrite(fn, pixels)
+			pixels = gloo.read_pixels(out_type = np.float32)[:,:,0]
+			fn = './' + basename + '_flowx_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
+			print np.max(pixels)
+			cv2.imwrite(fn, (255.*(pixels-np.min(pixels))/(np.max(pixels)-np.min(pixels))).astype(int))
 		with self._fbo3:
-			pixels = gloo.read_pixels(out_type = np.float32)
-			fn = './' + basename + '_flowy_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
-			print 'Saving flowy buffer screenshot to ' + fn
-			cv2.imwrite(fn, pixels)
-		
+			pixels = gloo.read_pixels(out_type = np.float32)[:,:,0]
+			fn = './' + basename + '_flowy_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
+			cv2.imwrite(fn, (255.*(pixels-np.min(pixels))/(np.max(pixels)-np.min(pixels))).astype(int))
 		if not saveall:
 			pixels = gloo.read_pixels()
-			fn = './' + basename + '_' + self.state + '_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
+			fn = './' + basename + '_' + self.state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
 		else:
@@ -304,12 +300,26 @@ class Renderer(app.Canvas):
 				self.state = state
 				self.on_draw(None)
 				pixels = gloo.read_pixels()
-				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + '.png'
-				print 'Saving screenshot to ' + fn
+				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
+				#print 'Saving screenshot to ' + fn
 				cv2.imwrite(fn, pixels)
 			self.state = oldstate
 			self.update()
 
+	def error(self, state, y_im, y_flow):
+		state.refresh()
+		state.render()
+		with self._fbo1:
+			pixels = gloo.read_pixels()
+		with self._fbo2:
+			fx = gloo.read_pixels(out_type = np.float32)
+		with self._fbo3:
+			fy = gloo.read_pixels(out_type = np.float32)
+
+		e_im = np.sum(np.multiply(y_im-pixels[:,:,0], y_im-pixels[:,:,0]))
+		e_fx = np.sum(np.multiply(y_flow[:,:,0]-fx[:,:,0], y_flow[:,:,0]-fx[:,:,0]))
+		e_fy = np.sum(np.multiply(y_flow[:,:,1]-fy[:,:,0], y_flow[:,:,1]-fy[:,:,0]))
+		return e_im, e_fx, e_fy, fx, fy
 
 	def update_vertex_buffer(self, vertices, velocities):
 		verdata = np.zeros((self.nP,3))
@@ -317,7 +327,7 @@ class Renderer(app.Canvas):
 		#rescale
 		verdata[:,0:2] = 2*vertices/self.nx-1
 		verdata[:,1] = -verdata[:,1]
-		#veldata[:,0:2] = 2*velocities/self.nx-1
+		#veldata[:,0:2] = 2*velocities/self.nx
 		veldata[:,0:2] = velocities
 		veldata[:,1] = -veldata[:,1]
 		self.vertex_data['a_position'] = verdata
