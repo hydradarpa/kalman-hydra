@@ -184,20 +184,28 @@ class KalmanFilter:
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, flow, cuda):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda)
-		self.nI = 100
+		self.nI = 10
 
 	def update(self, y_im, y_flow = None):
-		#import rpdb2 
+		#import rpdb2
 		#rpdb2.start_embedded_debugger("asdf")
+		#np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 		print 'Updating'
 		X = self.state.X
+		X_orig = X.copy()
 		W = self.state.W
+		W_orig = W.copy()
+		invW_orig = np.linalg.inv(W)
+		invW = np.linalg.inv(W)
 		eps_H = self.state.eps_H
 		for i in range(self.nI):
-			(Kres, HTH) = self.state.update(y_im, y_flow)
-			self.state.X = X + W*Kres/eps_H
-		invW = np.linalg.inv(W) + HTH/eps_H 
-		self.state.W = np.linalg.inv(invW)
+			sys.stdout.write('.')
+			(Hz, HTH) = self.state.update(y_im, y_flow)
+			invW = invW_orig + HTH/eps_H
+			W = np.linalg.inv(invW)
+			X = X_orig + np.dot(W,Hz)/eps_H
+			self.state.X = X
+			self.state.W = W 
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):
