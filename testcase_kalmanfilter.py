@@ -61,7 +61,6 @@ for i in range(nF):
 	print 'Frame %d' % count 
 	frame = video[:,:,i]
 	flowframe = flow[:,:,:,i]
-
 	#frame = frame.transpose()
 	#flowframe = flowframe.transpose((1,0,2))
 	#flowframe = flowframe[:,:,::-1]
