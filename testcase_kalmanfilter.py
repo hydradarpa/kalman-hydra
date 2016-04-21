@@ -71,7 +71,7 @@ for i in range(nF):
 	#cv2.waitKey(0)
 	#raw_input("--Iteration %d Finished. Press Enter to continue" % j)
 	(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
-	print 'Error im:', e_im
+	print 'Error image:', e_im
 	print 'Error flow x:', e_fx
 	print 'Error flow y:', e_fy
 	#kf.compute(grayframe, flowframe)
