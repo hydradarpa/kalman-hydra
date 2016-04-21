@@ -11,6 +11,10 @@ from distmesh_dyn import DistMesh
 from renderer import Renderer
 
 import pdb
+import sys
+from timeit import timeit 
+
+np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
 class KFState:
 	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3, vel = None):
@@ -132,12 +136,21 @@ class KalmanFilter:
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
 		self.state = KFState(distmesh, im, flow, cuda, vel=vel)
+		self.predtime = 0
+		self.updatetime = 0
 
 	def compute(self, y_im, y_flow, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
-		self.predict()
-		self.update(y_im, y_flow)
-		print self.state.X 
+		#self.predict()
+		#self.update(y_im, y_flow)
+		pt = timeit(self.predict, number = 1)
+		ut = timeit(lambda: self.update(y_im, y_flow), number = 1)
+		self.predtime += pt
+		self.updatetime += ut
+
+		print 'Current state:', self.state.X.T
+		print 'Prediction time:', pt 
+		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
 			self.state.renderer.screenshot(saveall=True, basename = imageoutput)
@@ -145,7 +158,7 @@ class KalmanFilter:
 		return self.error(y_im, y_flow)
 
 	def predict(self):
-		print 'Predicting'
+		print '--Predicting'
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 
@@ -166,12 +179,11 @@ class KalmanFilter:
 	def update(self, y_im, y_flow):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
-		print 'Updating'
+		print '--Updating'
 		X = self.state.X
 		W = self.state.W
 		eps_H = self.state.eps_H
 		(Hz, HTH) = self.state.update(y_im, y_flow)
-		np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 		invW = np.linalg.inv(W) + HTH/eps_H
 		W = np.linalg.inv(invW)
 		self.state.X = X + np.dot(W,Hz)/eps_H
@@ -190,7 +202,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		#import rpdb2
 		#rpdb2.start_embedded_debugger("asdf")
 		#np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
-		print 'Updating'
+		print '--Updating'
 		X = self.state.X
 		X_orig = X.copy()
 		W = self.state.W
