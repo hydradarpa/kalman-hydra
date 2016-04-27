@@ -346,4 +346,133 @@ class CUDAGL:
 		return 0		
 
 	def _process_total(self):
-		"""Use
+		"""Use PyCuda"""
+		nElements = np.int32(1024*16+10)
+		block_size = 1024
+		nBlocks = nElements/block_size + 1
+		grid_dimensions = (nBlocks,1,1)
+		a = np.random.randn(nElements).astype(np.float32)
+		sum_cpu = np.sum(a)
+		partialsum_gpu = np.zeros((nBlocks,1), dtype=np.float32)
+		self.cuda_total(cuda_driver.In(a), cuda_driver.Out(partialsum_gpu), \
+			np.uint32(nElements), grid=grid_dimensions, block=(block_size, 1, 1))
+		cuda_driver.Context.synchronize()
+		#Sum result from GPU
+		print nBlocks
+		print partialsum_gpu
+		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
+		return sum_cpu, sum_gpu
+
+#func(x_gpu.gpudata, np.uint32(N), np.uint32(h_minval), np.uint32(h_denom), block=(1024, 1, 1), grid=(number_of_blocks+1,1,1))
+
+
+	def jz(self, y_im):
+		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo
+
+		assert yp_tilde_pbo is not None
+
+		#Tell cuda we are going to get into these buffers
+		pycuda_yp_tilde_pbo.unregister()
+		#Load yp_tilde texture info
+		#activate y_tilde buffer
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(yp_tilde_pbo))
+		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
+		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
+		#         bytesize,
+		#         None, self.usage)
+		#read data into pbo. note: use BGRA format for optimal performance
+		glEnable(GL_TEXTURE_2D)
+		glActiveTexture(GL_TEXTURE0)
+		glBindTexture(GL_TEXTURE_2D, self.texture.id)
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+		#    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+		#         w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(GL_TEXTURE_2D)
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))	
+
+		#Do the same for flow x
+		pycuda_yp_fx_tilde_pbo.unregister()
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(yp_fx_tilde_pbo))
+		glEnable(GL_TEXTURE_2D)
+		glActiveTexture(GL_TEXTURE0)
+		glBindTexture(GL_TEXTURE_2D, self.texture.id)
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(GL_TEXTURE_2D)
+		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))	
+
+		#Do the same for flow y
+		pycuda_yp_fy_tilde_pbo.unregister()
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(yp_fy_tilde_pbo))
+		glEnable(GL_TEXTURE_2D)
+		glActiveTexture(GL_TEXTURE0)
+		glBindTexture(GL_TEXTURE_2D, self.texture.id)
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glDisable(GL_TEXTURE_2D)
+		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))	
+
+		#Copied perturbed image data to CUDA accessible memory, run the Cuda kernel
+		z = self._process_jz()
+		return z
+
+	def _process_jz(self):
+		""" Use PyCuda """
+		grid_dimensions = (self.width//10,self.height//10)
+		y_tilde_mapping = pycuda_y_tilde_pbo.map()
+		yp_tilde_mapping = pycuda_yp_tilde_pbo.map()
+		self.cuda_jz.prepared_call(grid_dimensions, (10, 10, 1),
+				y_tilde_mapping.device_ptr(),
+				yp_tilde_mapping.device_ptr())
+		cuda_driver.Context.synchronize()
+		y_tilde_mapping.unmap()
+		yp_tilde_mapping.unmap()
+		#Get result from CUDA...
+		return 0
+
+	############################################################################
+	#CPU code###################################################################
+	############################################################################
+	def get_pixel_data(self):
+		with self._fbo1:
+			a = gloo.read_pixels()[:,:,0]
+		with self._fbo2:
+			b = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		with self._fbo3:
+			c = gloo.read_pixels(out_type = np.float32)[:,:,0]
+		return (a, b, c)
+
+	def initjacobian_CPU(self, y_im, y_flow):
+		(y_tilde, y_fx_tilde, y_fy_tilde) = self.get_pixel_data()
+		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
+		self.y_tilde = y_tilde.astype(float)/255
+		self.zfx = y_flow[:,:,0] - y_fx_tilde
+		self.y_fx_tilde = y_fx_tilde
+		self.zfy = y_flow[:,:,1] + y_fy_tilde
+		self.y_fy_tilde = y_fy_tilde
+
+	def jz_CPU(self):
+		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
+		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
+
+	def j_CPU(self, state, deltaX, i, j):
+		state.X[i,0] += deltaX
+		state.refresh()
+		state.render()
+		state.X[i,0] -= deltaX
+		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
+		state.X[j,0] += deltaX
+		state.refresh()
+		state.render()
+		state.X[j,0] -= deltaX
+		(ypp_tilde, ypp_fx_tilde, ypp_fy_tilde) = self.get_pixel_data()
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
+		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
+		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)
