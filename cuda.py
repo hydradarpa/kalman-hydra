@@ -141,7 +141,7 @@ class CUDAGL:
 			self.cuda_initjac = cuda_module.get_function("initjac")
 			self.cuda_initjac.prepare("PP")
 			self.cuda_total = cuda_module.get_function("total")
-			#self.cuda_total.prepare("PPP")
+			self.cuda_total.prepare("PPP")
 
 			# create y_tilde and y_im pixel buffer objects for processing
 			self._createPBOs()
@@ -347,18 +347,20 @@ class CUDAGL:
 
 	def _process_total(self):
 		"""Use PyCuda"""
-		#nElements = 16*1024*np.ones((1,1), dtype=np.float32)
-		nElements = np.int32(16*1024)
-		grid_dimensions = (16,1,1)
+		nElements = np.int32(1024*16+10)
+		block_size = 1024
+		nBlocks = nElements/block_size + 1
+		grid_dimensions = (nBlocks,1,1)
 		a = np.random.randn(nElements).astype(np.float32)
 		sum_cpu = np.sum(a)
-		sum_gpu = np.zeros((16,1), dtype=np.float32)
-		#self.cuda_total.prepared_call(grid_dimensions, (16, 1, 1), cuda_driver.In(a), \
-		#	cuda_driver.Out(sum_gpu),cuda_driver.In(nElements))
-		self.cuda_total(cuda_driver.In(a), \
-			cuda_driver.Out(sum_gpu),np.uint32(nElements),\
-			grid=grid_dimensions, block=(1024, 1, 1))
+		partialsum_gpu = np.zeros((nBlocks,1), dtype=np.float32)
+		self.cuda_total(cuda_driver.In(a), cuda_driver.Out(partialsum_gpu), \
+			np.uint32(nElements), grid=grid_dimensions, block=(block_size, 1, 1))
 		cuda_driver.Context.synchronize()
+		#Sum result from GPU
+		print nBlocks
+		print partialsum_gpu
+		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
 		return sum_cpu, sum_gpu
 
 #func(x_gpu.gpudata, np.uint32(N), np.uint32(h_minval), np.uint32(h_denom), block=(1024, 1, 1), grid=(number_of_blocks+1,1,1))
