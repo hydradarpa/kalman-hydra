@@ -94,9 +94,9 @@ class CUDAGL:
 			    //may need to take a stride of 4, here... will experiment and see
 			    if ((start + t) < len)
 			    {
-			        //partialSum[t] = y_tilde[start + t]*y_im[start + t];
+			        partialSum[t] = y_tilde[start + t]*y_im[start + t];
 			        //partialSum[t] = y_im[start + t];
-			        partialSum[t] = y_tilde[stride*(start + t)];
+			        //partialSum[t] = y_tilde[stride*(start + t)];
 			    }
 			    else
 			    {       
@@ -104,9 +104,9 @@ class CUDAGL:
 			    }
 			    if ((start + blockDim.x + t) < len)
 			    {   
-			        //partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
+			        partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
 			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t];
-			        partialSum[blockDim.x + t] = y_tilde[stride*(start + blockDim.x + t)];
+			        //partialSum[blockDim.x + t] = y_tilde[stride*(start + blockDim.x + t)];
 			    }
 			    else
 			    {
@@ -182,6 +182,17 @@ class CUDAGL:
 			# create y_tilde and y_im pixel buffer objects for processing
 			self._createPBOs()
 
+	def __del__(self):
+		self._destroy_PBOs()
+
+	def _initializePBO(self, data):
+		pbo = glGenBuffers(1)
+		glBindBuffer(GL_ARRAY_BUFFER, pbo)
+		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
+		glBindBuffer(GL_ARRAY_BUFFER, 0)
+		pycuda_pbo = cuda_gl.BufferObject(long(pbo))
+		return (pbo, pycuda_pbo)
+
 	def _createPBOs(self):
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
@@ -197,91 +208,33 @@ class CUDAGL:
 		 pycuda_y_fy_pbo, y_fy_pbo
 
 		num_texels = self.width*self.height
-		data = np.zeros((num_texels,1),np.uint8)
-
 		###########
 		#y_im data#
 		###########
-		y_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
-
-		yp_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, yp_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
-
-		ypp_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, ypp_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
-
-		y_im_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_im_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_im_pbo = cuda_gl.BufferObject(long(y_im_pbo))
+		data = np.zeros((num_texels,1),np.uint8)
+		(y_tilde_pbo, pycuda_y_tilde_pbo) = self._initializePBO(data)
+		(yp_tilde_pbo, pycuda_yp_tilde_pbo) = self._initializePBO(data)
+		(ypp_tilde_pbo, pycuda_ypp_tilde_pbo) = self._initializePBO(data)
+		(y_im_pbo, pycuda_y_im_pbo) = self._initializePBO(data)
 
 		#############
 		#Flow x data#
 		#############
 		data = np.zeros((num_texels,1),np.float32)
-		y_fx_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_fx_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_fx_tilde_pbo = cuda_gl.BufferObject(long(y_fx_tilde_pbo))
-
-		yp_fx_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, yp_fx_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
-
-		ypp_fx_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, ypp_fx_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
-
-		y_fx_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_fx_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_fx_pbo = cuda_gl.BufferObject(long(y_fx_pbo))
+		(y_fx_tilde_pbo, pycuda_y_fx_tilde_pbo) = self._initializePBO(data)
+		(yp_fx_tilde_pbo, pycuda_yp_fx_tilde_pbo) = self._initializePBO(data)
+		(ypp_fx_tilde_pbo, pycuda_ypp_fx_tilde_pbo) = self._initializePBO(data)
+		(y_fx_pbo, pycuda_y_fx_pbo) = self._initializePBO(data)
 
 		#############
 		#Flow y data#
 		#############
-		y_fy_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_fy_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_fy_tilde_pbo = cuda_gl.BufferObject(long(y_fy_tilde_pbo))
+		(y_fy_tilde_pbo, pycuda_y_fy_tilde_pbo) = self._initializePBO(data)
+		(yp_fy_tilde_pbo, pycuda_yp_fy_tilde_pbo) = self._initializePBO(data)
+		(ypp_fy_tilde_pbo, pycuda_ypp_fy_tilde_pbo) = self._initializePBO(data)
+		(y_fy_pbo, pycuda_y_fy_pbo) = self._initializePBO(data)
 
-		yp_fy_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, yp_fy_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
-
-		ypp_fy_tilde_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, ypp_fy_tilde_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
-
-		y_fy_pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, y_fy_pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_y_fy_pbo = cuda_gl.BufferObject(long(y_fy_pbo))
-
-	def _destroy_PBOs():
+	def _destroy_PBOs(self):
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
 		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
@@ -339,28 +292,12 @@ class CUDAGL:
 		usage = GL_STREAM_DRAW
 		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, bytesize, None, usage)
-
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0)
 		glBindTexture(GL_TEXTURE_2D, 1)#self.texture.id)
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
-
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
-
-		#bytesize = self.height*self.width*3
-		#usage = GL_STREAM_READ
-		#glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, long(y_tilde_pbo))
-		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
-		#             bytesize,
-		#             None, usage)
-		#glEnable(GL_TEXTURE_2D)
-		#glActiveTexture(GL_TEXTURE0)
-		#glBindTexture(GL_TEXTURE_2D, self.texture.id)
-		#glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB,
-		#                            GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
-		#glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
-		#glDisable(GL_TEXTURE_2D)
 
 		#Load y_im (current frame) info from CPU memory
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_im_pbo))
@@ -377,7 +314,6 @@ class CUDAGL:
 
 		#Check the data is loaded correctly by comparing the sum on CPU and GPU
 		z_gpu = self._process_initjac()
-		#z_gpu = 0
 		z_cpu = self.initjacobian_CPU(y_im, y_flow, test = True)
 		return z_cpu, z_gpu
 
@@ -394,11 +330,6 @@ class CUDAGL:
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 		partialsum = np.zeros((nBlocks,1), dtype=np.int32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
-
-		#y_test_im = 128*np.ones(nElements, dtype=np.int32)
-		#y_test_im_gpu = gpuarray.to_gpu(y_test_im)
-		#y_test_tilde = 128*np.ones(nElements, dtype=np.int32)
-		#y_test_tilde_gpu = gpuarray.to_gpu(y_test_tilde)
 
 		y_tilde_mapping = pycuda_y_tilde_pbo.map()
 		y_im_mapping = pycuda_y_im_pbo.map()
@@ -518,8 +449,8 @@ class CUDAGL:
 		self.zfy = y_flow[:,:,1] + y_fy_tilde
 		self.y_fy_tilde = y_fy_tilde
 		if test is True:
-			#return np.sum(np.multiply(y_im,y_tilde, dtype=np.int32), dtype=np.int32)
-			return np.sum(y_tilde, dtype=np.int32)
+			return np.sum(np.multiply(y_im,y_tilde, dtype=np.int32), dtype=np.int32)
+			#return np.sum(y_tilde, dtype=np.int32)
 			#return np.sum(y_im, dtype=np.int32)
 		else:
 			return
