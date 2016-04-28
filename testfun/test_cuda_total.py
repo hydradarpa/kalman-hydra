@@ -6,6 +6,9 @@ import dill
 with open('test/testdata_ones.pkl', 'rb') as f:
 	objs = dill.load(f)
 (distmesh, vel, flow, nx, im1) = objs
+
+#Introduce some error for testing 
+distmesh.p += 2
 kf = KalmanFilter(distmesh, im1, flow, cuda=True, vel = vel)
 rend = kf.state.renderer
 cuda = kf.state.renderer.cudagl 
@@ -17,8 +20,8 @@ y_flow = flow
 nx = nx 
 deltaX = 3
 
-eps = 1e-6
 print 'test_initjacobian_ones'
-#cuda.initjacobian(im1, flow)
-
-cuda.total()
+z_cpu, z_gpu = cuda.initjacobian(im1, flow)
+print 'CPU:', z_cpu
+print 'GPU:', z_gpu
+#cuda.total()

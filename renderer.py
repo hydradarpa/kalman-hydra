@@ -212,7 +212,7 @@ class Renderer(app.Canvas):
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
-		self._rendertex1 = gloo.Texture2D((self.shape + (3,)))
+		self._rendertex1 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
 		self._rendertex2 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))

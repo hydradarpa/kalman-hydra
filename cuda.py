@@ -19,6 +19,7 @@ try:
 	import pycuda.gl as cuda_gl
 	import pycuda
 	from pycuda.compiler import SourceModule
+	import pycuda.gpuarray as gpuarray
 	BLOCK_SIZE = 1024
 	print '...success'
 except:
@@ -79,17 +80,51 @@ class CUDAGL:
 			  //y_tilde[idx+2] = 255 - y_im[idx+2];
 			}
 
-			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im)
+			//Sum all elements of an input array of floats...
+			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im, int *output, int len) 
 			{
-			  int block_num        = blockIdx.x + blockIdx.y * gridDim.x;
-			  int thread_num       = threadIdx.y * blockDim.x + threadIdx.x;
-			  int threads_in_block = blockDim.x * blockDim.y;
-			  //Since the image is RGBA we multiply the index 4.
-			  //We'll only use the first 3 (RGB) channels though
-			  int idx              = 4 * (threads_in_block * block_num + thread_num);
-			  //y_tilde[idx  ] = 255 - y_im[idx  ];
-			  //y_tilde[idx+1] = 255 - y_im[idx+1];
-			  //y_tilde[idx+2] = 255 - y_im[idx+2];
+			    // Load a segment of the input vector into shared memory
+			    __shared__ int partialSum[2*{{ block_size }}];
+			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
+			    unsigned int t = threadIdx.x;
+			    unsigned int start = 2*blockIdx.x*blockDim.x;
+			    unsigned int stride = 1;
+
+			    //pointwise multiplication here
+			    //may need to take a stride of 4, here... will experiment and see
+			    if ((start + t) < len)
+			    {
+			        //partialSum[t] = y_tilde[start + t]*y_im[start + t];
+			        //partialSum[t] = y_im[start + t];
+			        partialSum[t] = y_tilde[stride*(start + t)];
+			    }
+			    else
+			    {       
+			        partialSum[t] = 0;
+			    }
+			    if ((start + blockDim.x + t) < len)
+			    {   
+			        //partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
+			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t];
+			        partialSum[blockDim.x + t] = y_tilde[stride*(start + blockDim.x + t)];
+			    }
+			    else
+			    {
+			        partialSum[blockDim.x + t] = 0;
+			    }
+			    // Traverse reduction tree
+			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
+			    {
+			      __syncthreads();
+			        if (t < stride)
+			            partialSum[t] += partialSum[t + stride];
+			    }
+			    __syncthreads();
+			    // Write the computed sum of the block to the output vector at correct index
+			    if (t == 0 && (globalThreadId*2) < len)
+			    {
+			        output[blockIdx.x] = partialSum[t];
+			    }
 			}
 
 			//Sum all elements of an input array of floats...
@@ -140,7 +175,7 @@ class CUDAGL:
 			self.cuda_j = cuda_module.get_function("j")
 			self.cuda_j.prepare("PPP")
 			self.cuda_initjac = cuda_module.get_function("initjac")
-			self.cuda_initjac.prepare("PP")
+			self.cuda_initjac.prepare("PPPi")
 			self.cuda_total = cuda_module.get_function("total")
 			self.cuda_total.prepare("PPP")
 
@@ -162,7 +197,7 @@ class CUDAGL:
 		 pycuda_y_fy_pbo, y_fy_pbo
 
 		num_texels = self.width*self.height
-		data = np.zeros((num_texels,4),np.uint8)
+		data = np.zeros((num_texels,1),np.uint8)
 
 		###########
 		#y_im data#
@@ -194,7 +229,7 @@ class CUDAGL:
 		#############
 		#Flow x data#
 		#############
-		data = np.zeros((num_texels,4),np.float32)
+		data = np.zeros((num_texels,1),np.float32)
 		y_fx_tilde_pbo = glGenBuffers(1)
 		glBindBuffer(GL_ARRAY_BUFFER, y_fx_tilde_pbo)
 		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
@@ -300,17 +335,32 @@ class CUDAGL:
 		#Load y_tilde texture info
 		#activate y_tilde buffer
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_tilde_pbo))
+		bytesize = self.height*self.width
+		usage = GL_STREAM_DRAW
 		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
-		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
-		#         bytesize,
-		#         None, self.usage)
-		#read data into pbo. note: use BGRA format for optimal performance
+		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, bytesize, None, usage)
+
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0)
-		glBindTexture(GL_TEXTURE_2D, self.texture.id)
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
-		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		glBindTexture(GL_TEXTURE_2D, 1)#self.texture.id)
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
+
+		#bytesize = self.height*self.width*3
+		#usage = GL_STREAM_READ
+		#glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, long(y_tilde_pbo))
+		#glBufferData(GL_PIXEL_PACK_BUFFER_ARB,
+		#             bytesize,
+		#             None, usage)
+		#glEnable(GL_TEXTURE_2D)
+		#glActiveTexture(GL_TEXTURE0)
+		#glBindTexture(GL_TEXTURE_2D, self.texture.id)
+		#glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB,
+		#                            GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+		#glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
+		#glDisable(GL_TEXTURE_2D)
 
 		#Load y_im (current frame) info from CPU memory
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_im_pbo))
@@ -325,46 +375,60 @@ class CUDAGL:
 		#pycuda_y_fx_pbo = cuda_gl.BufferObject(long(y_fx_pbo))
 		#pycuda_y_fy_pbo = cuda_gl.BufferObject(long(y_fy_pbo))
 
-		z = self._process_initjac()
-		return (0,0)
+		#Check the data is loaded correctly by comparing the sum on CPU and GPU
+		z_gpu = self._process_initjac()
+		#z_gpu = 0
+		z_cpu = self.initjacobian_CPU(y_im, y_flow, test = True)
+		return z_cpu, z_gpu
 
 	def total(self):
 		return self._process_total()
 
 	def _process_initjac(self):
 		"""Use PyCuda"""
-		grid_dimensions = (self.width//10,self.height//10)
+		nElements = self.width*self.height
+		nBlocks = nElements/BLOCK_SIZE + 1
+		print 'No. elements:', nElements
+		print 'No. blocks:', nBlocks
+		grid_dimensions = (nBlocks, 1)
+		block_dimensions = (BLOCK_SIZE, 1, 1)
+		partialsum = np.zeros((nBlocks,1), dtype=np.int32)
+		partialsum_gpu = gpuarray.to_gpu(partialsum)
+
+		#y_test_im = 128*np.ones(nElements, dtype=np.int32)
+		#y_test_im_gpu = gpuarray.to_gpu(y_test_im)
+		#y_test_tilde = 128*np.ones(nElements, dtype=np.int32)
+		#y_test_tilde_gpu = gpuarray.to_gpu(y_test_tilde)
+
 		y_tilde_mapping = pycuda_y_tilde_pbo.map()
 		y_im_mapping = pycuda_y_im_pbo.map()
-		self.cuda_initjac.prepared_call(grid_dimensions, (10, 10, 1),
-				y_tilde_mapping.device_ptr(),
-				y_im_mapping.device_ptr())
+		self.cuda_initjac.prepared_call(grid_dimensions, block_dimensions,\
+		 y_tilde_mapping.device_ptr(), \
+		 y_im_mapping.device_ptr(), partialsum_gpu.gpudata, np.uint32(nElements))
+
 		cuda_driver.Context.synchronize()
 		y_tilde_mapping.unmap()
 		y_im_mapping.unmap()
-		#Get result from CUDA...
-		return 0		
+		partialsum = partialsum_gpu.get()
+		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
+		return sum_gpu
 
 	def _process_total(self):
 		"""Use PyCuda"""
-		nElements = np.int32(1024*16+10)
-		block_size = 1024
-		nBlocks = nElements/block_size + 1
+		nElements = np.int32(BLOCK_SIZE*16+10)
+		nBlocks = nElements/BLOCK_SIZE + 1
 		grid_dimensions = (nBlocks,1,1)
 		a = np.random.randn(nElements).astype(np.float32)
 		sum_cpu = np.sum(a)
 		partialsum_gpu = np.zeros((nBlocks,1), dtype=np.float32)
 		self.cuda_total(cuda_driver.In(a), cuda_driver.Out(partialsum_gpu), \
-			np.uint32(nElements), grid=grid_dimensions, block=(block_size, 1, 1))
+			np.uint32(nElements), grid=grid_dimensions, block=(BLOCK_SIZE, 1, 1))
 		cuda_driver.Context.synchronize()
 		#Sum result from GPU
 		print nBlocks
 		print partialsum_gpu
 		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
 		return sum_cpu, sum_gpu
-
-#func(x_gpu.gpudata, np.uint32(N), np.uint32(h_minval), np.uint32(h_denom), block=(1024, 1, 1), grid=(number_of_blocks+1,1,1))
-
 
 	def jz(self, y_im):
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
@@ -445,7 +509,7 @@ class CUDAGL:
 			c = gloo.read_pixels(out_type = np.float32)[:,:,0]
 		return (a, b, c)
 
-	def initjacobian_CPU(self, y_im, y_flow):
+	def initjacobian_CPU(self, y_im, y_flow, test = False):
 		(y_tilde, y_fx_tilde, y_fy_tilde) = self.get_pixel_data()
 		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
 		self.y_tilde = y_tilde.astype(float)/255
@@ -453,6 +517,12 @@ class CUDAGL:
 		self.y_fx_tilde = y_fx_tilde
 		self.zfy = y_flow[:,:,1] + y_fy_tilde
 		self.y_fy_tilde = y_fy_tilde
+		if test is True:
+			#return np.sum(np.multiply(y_im,y_tilde, dtype=np.int32), dtype=np.int32)
+			return np.sum(y_tilde, dtype=np.int32)
+			#return np.sum(y_im, dtype=np.int32)
+		else:
+			return
 
 	def jz_CPU(self):
 		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
