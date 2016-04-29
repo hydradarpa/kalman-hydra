@@ -2,6 +2,7 @@ from cuda import *
 from renderer import Renderer
 from kalman2 import KalmanFilter 
 import dill 
+from timeit import timeit 
 
 with open('test/testdata_ones.pkl', 'rb') as f:
 	objs = dill.load(f)
@@ -21,7 +22,8 @@ nx = nx
 deltaX = 3
 
 print 'test_initjacobian_ones'
-z_cpu, z_gpu = cuda.initjacobian(im1, flow)
+z_gpu = cuda.initjacobian(im1, flow, test = True)
+z_cpu = cuda.initjacobian_CPU(y_im, y_flow, test = True)
 print 'CPU:', z_cpu
 print 'GPU:', z_gpu
 #cuda.total()

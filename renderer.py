@@ -225,7 +225,13 @@ class Renderer(app.Canvas):
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
-		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, cuda)
+		self.on_draw(None)
+		print self._rendertex1.id
+		print self.context.shared._parser._objects
+		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
+		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
+		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
+		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, cuda)
 
 	def on_resize(self, event):
 		width, height = event.physical_size
