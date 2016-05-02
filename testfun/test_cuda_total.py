@@ -19,11 +19,31 @@ state = kf.state
 y_im = im1 
 y_flow = flow 
 nx = nx 
-deltaX = 3
+deltaX = -10
 
-print 'test_initjacobian_ones'
 z_gpu = cuda.initjacobian(im1, flow, test = True)
 z_cpu = cuda.initjacobian_CPU(y_im, y_flow, test = True)
+print 'Test initjacobian'
 print 'CPU:', z_cpu
 print 'GPU:', z_gpu
-#cuda.total()
+
+#Perturb vertices a bit and rerender
+idx = 0
+kf.state.X[idx,0] += deltaX
+kf.state.refresh()
+kf.state.render()
+kf.state.X[idx,0] -= deltaX
+
+jz_gpu = cuda.jz()
+jz_cpu = cuda.jz_CPU()
+print 'Test jz'
+print 'CPU:', jz_cpu
+print 'GPU:', jz_gpu
+
+deltaX = 100
+i = 1; j = 14
+j_gpu = cuda.j(kf.state, deltaX, i, j)
+j_cpu = cuda.j_CPU(kf.state, deltaX, i, j)
+print 'Test j'
+print 'CPU:', j_cpu
+print 'GPU:', j_gpu

@@ -14,7 +14,7 @@ import numpy as np
 #import matplotlib.image as mpimg
 import matplotlib.pyplot as plot 
 
-cuda = False 
+cuda = True 
 gridsize = 80
 threshold = 9
 name = 'test_data'

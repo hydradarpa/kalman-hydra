@@ -177,7 +177,7 @@ class Renderer(app.Canvas):
 		self.cuda = cuda
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
-		app.Canvas.__init__(self, keys='interactive', title = title)
+		app.Canvas.__init__(self, keys='interactive', title = title, show = False)
 		self.size = (nx, nx)
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -226,8 +226,8 @@ class Renderer(app.Canvas):
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		self.show()
 		self.on_draw(None)
-		print self._rendertex1.id
-		print self.context.shared._parser._objects
+		#print self._rendertex1.id
+		#print self.context.shared._parser._objects
 		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
 		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
