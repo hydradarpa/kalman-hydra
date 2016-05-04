@@ -268,7 +268,7 @@ def test_data(nx, ny):
 	end = 2*nx//3
 	width = end-start
 	height = end-start
-	flow = np.zeros((nx, ny, 2, nframes))
+	flow = np.zeros((nx, ny, 2, nframes), dtype=np.float32)
 
 	for i in range(start,end):
 		for j in range(start,end):
@@ -361,7 +361,7 @@ def test_data_image(fn = './video/milkyway.jpg'):
 	speed = 3
 	noise = 10
 	video = np.zeros((nx, ny, nframes), dtype = np.uint8)
-	flow = np.zeros((nx, ny, 2, nframes))
+	flow = np.zeros((nx, ny, 2, nframes), dtype=np.float32)
 
 	#Translate the box for a few frames
 	for i in range(nframes):

@@ -200,10 +200,10 @@ class CUDAGL:
 			}
 
 			//Sum all elements of an input array of floats...
-			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im, int *output, int len) 
+			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im, float *output, int len) 
 			{
 			    // Load a segment of the input vector into shared memory
-			    __shared__ int partialSum[2*{{ block_size }}];
+			    __shared__ float partialSum[2*{{ block_size }}];
 			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
 			    unsigned int t = threadIdx.x;
 			    unsigned int start = 2*blockIdx.x*blockDim.x;
@@ -212,9 +212,9 @@ class CUDAGL:
 			    //may need to take a stride of 4, here... will experiment and see
 			    if ((start + t) < len)
 			    {
-			        partialSum[t] = y_tilde[start + t]*y_im[start + t];
-			        //partialSum[t] = y_im[start + t];
-			        //partialSum[t] = y_tilde[(start + t)];
+			        partialSum[t] = (float)y_tilde[start + t]*(float)y_im[start + t]/255.0/255.0;
+			        //partialSum[t] = y_im[start + t]/255.0;
+			        //partialSum[t] = y_tilde[(start + t)]/255.0;
 			    }
 			    else
 			    {       
@@ -222,9 +222,9 @@ class CUDAGL:
 			    }
 			    if ((start + blockDim.x + t) < len)
 			    {   
-			        partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)];
+			        partialSum[blockDim.x + t] = (float)y_tilde[start + blockDim.x + t]*(float)y_im[start + blockDim.x + t]/255.0/255.0;
+			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t]/255.0;
+			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)]/255.0;
 			    }
 			    else
 			    {
@@ -446,7 +446,8 @@ class CUDAGL:
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
 
-	def initjacobian(self, y_im, y_flow, test = False):
+	def initjacobian(self, y_im_flip, y_flow, test = False):
+		y_im = np.flipud(y_im_flip)
 		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
@@ -530,7 +531,8 @@ class CUDAGL:
 			tilde_mapping = pycuda_y_tilde_pbo.map()
 			im_mapping = pycuda_y_im_pbo.map()
 			kernel = self.cuda_initjac
-			dtype = np.int32
+			#dtype = np.uint32
+			dtype = np.float32
 		elif mode == TEST_FLOWX:
 			tilde_mapping = pycuda_y_fx_tilde_pbo.map()
 			im_mapping = pycuda_y_fx_pbo.map()
@@ -577,7 +579,7 @@ class CUDAGL:
 		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo
 
 		assert yp_tilde_pbo is not None
-		floatsize = 4
+		floatsize = 4 #32bit precision...
 		bytesize = self.height*self.width
 
 		pycuda_yp_tilde_pbo.unregister()
@@ -599,8 +601,8 @@ class CUDAGL:
 		""" Use PyCuda """
 		nElements = self.width*self.height
 		nBlocks = nElements/BLOCK_SIZE + 1
-		print 'No. elements:', nElements
-		print 'No. blocks:', nBlocks
+		#print 'No. elements:', nElements
+		#print 'No. blocks:', nBlocks
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
@@ -652,7 +654,7 @@ class CUDAGL:
 		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
 		sum_fx_gpu = np.sum(partialsum_fx[0:np.ceil(nBlocks/2.)])
 		sum_fy_gpu = np.sum(partialsum_fy[0:np.ceil(nBlocks/2.)])
-		print sum_gpu, sum_fx_gpu, sum_fy_gpu 
+		#print sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		return sum_gpu+sum_fx_gpu+sum_fy_gpu
 
 	def j(self, state, deltaX, i, j):
@@ -708,8 +710,8 @@ class CUDAGL:
 		""" Use PyCuda """
 		nElements = self.width*self.height
 		nBlocks = nElements/BLOCK_SIZE + 1
-		print 'No. elements:', nElements
-		print 'No. blocks:', nBlocks
+		#print 'No. elements:', nElements
+		#print 'No. blocks:', nBlocks
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
@@ -763,8 +765,8 @@ class CUDAGL:
 		sum_fx_gpu = np.sum(partialsum_fx[0:np.ceil(nBlocks/2.)])
 		sum_fy_gpu = np.sum(partialsum_fy[0:np.ceil(nBlocks/2.)])
 		scale = 1;
-		print 'j (GPU) components'
-		print sum_gpu, sum_fx_gpu/scale/scale, sum_fy_gpu/scale/scale
+		#print 'j (GPU) components'
+		#print sum_gpu, sum_fx_gpu/scale/scale, sum_fy_gpu/scale/scale
 		return sum_gpu+sum_fx_gpu/scale/scale+sum_fy_gpu/scale/scale
 
 	############################################################################
@@ -789,9 +791,9 @@ class CUDAGL:
 		self.y_fy_tilde = y_fy_tilde
 		if test is True:
 			#Image
-			return np.sum(np.multiply(y_im,y_tilde, dtype=np.int32), dtype=np.int32)
-			#return np.sum(y_tilde, dtype=np.int32)
-			#return np.sum(y_im, dtype=np.int32)
+			return np.sum(np.multiply(y_im/255.,y_tilde/255., dtype=np.float32), dtype=np.float32)
+			#return np.sum(y_tilde/255., dtype=np.float32)
+			#return np.sum(y_im/255., dtype=np.float32)
 			#Flow X
 			#return np.sum(np.multiply(y_flow[:,:,0], y_fx_tilde, dtype=np.float32), dtype=np.float32)
 			#return np.sum(y_flow[:,:,0], dtype = np.float32)
@@ -808,7 +810,7 @@ class CUDAGL:
 		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
 		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
 		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
-		print np.sum(hz), np.sum(hzx), np.sum(hzy)
+		#print np.sum(hz), np.sum(hzx), np.sum(hzy)
 		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
 
 	def j_CPU(self, state, deltaX, i, j):
@@ -831,12 +833,12 @@ class CUDAGL:
 		hzx_t = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde, dtype=np.float32)
 		hzy_t = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde, dtype=np.float32)
 
-		print 'j_CPU components'
-		print np.sum(hz_t),np.sum(hzx_t),np.sum(hzy_t)
-		print np.sum(hz_t)+np.sum(hzx_t)+np.sum(hzy_t)
-		print 'No. non zero components'
-		print 'x:', np.mean(np.abs(hzx_t))
-		print 'y:', np.mean(np.abs(hzy_t))
+		#print 'j_CPU components'
+		#print np.sum(hz_t),np.sum(hzx_t),np.sum(hzy_t)
+		#print np.sum(hz_t)+np.sum(hzx_t)+np.sum(hzy_t)
+		#print 'No. non zero components'
+		#print 'x:', np.mean(np.abs(hzx_t))
+		#print 'y:', np.mean(np.abs(hzy_t))
 		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)
 
 		#(yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])

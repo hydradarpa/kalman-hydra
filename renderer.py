@@ -173,11 +173,12 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, show = False):
 		self.cuda = cuda
+		self.show = show 
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
-		app.Canvas.__init__(self, keys='interactive', title = title, show = False)
+		app.Canvas.__init__(self, keys='interactive', title = title, show = show)
 		self.size = (nx, nx)
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -224,7 +225,7 @@ class Renderer(app.Canvas):
 		gloo.set_viewport(0, 0, nx, nx)
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
-		self.show()
+		#self.show()
 		self.on_draw(None)
 		#print self._rendertex1.id
 		#print self.context.shared._parser._objects
@@ -415,18 +416,34 @@ class Renderer(app.Canvas):
 	def initjacobian(self, y_im, y_flow):
 		if self.cuda:
 			self.cudagl.initjacobian(y_im, y_flow)
+			#self.cudagl.initjacobian_CPU(y_im, y_flow)
 		else:
 			self.cudagl.initjacobian_CPU(y_im, y_flow)
 
 	def jz(self):
+		#Compare both and see if they're always off, or just sometimes...
+
 		if self.cuda:
-			return self.cudagl.jz()
+			#print 'jz(). Using GPU (CUDA)'
+			jz_GPU = self.cudagl.jz()
+			#jz_CPU = self.cudagl.jz_CPU()
+			#print 'GPU:', jz_GPU, 'CPU:', jz_CPU
+			return jz_GPU
+
+			#return self.cudagl.jz()
 		else:
+			#print 'Using CPU'
 			return self.cudagl.jz_CPU()
 
 	def j(self, state, deltaX, i, j):
 		if self.cuda:
-			return self.cudagl.j(state, deltaX, i, j)
+			#print 'j(). Using GPU (CUDA)'
+			j_GPU = self.cudagl.j(state, deltaX, i, j)
+			#j_CPU = self.cudagl.j_CPU(state, deltaX, i, j)
+			#print 'GPU:', j_GPU, 'CPU:', j_CPU
+			return j_GPU
+
+			#return self.cudagl.j(state, deltaX, i, j)
 		else:
 			return self.cudagl.j_CPU(state, deltaX, i, j)
 
