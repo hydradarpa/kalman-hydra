@@ -63,7 +63,7 @@ class KFState:
 		self.W = np.eye(self._vel.shape[0]*4)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, showtracking = True)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
@@ -303,3 +303,72 @@ class KalmanFilterMorph(KalmanFilter):
 			self.state.X[idx,0] -= deltaX
 			H[:,idx] = (z_tilde - zp)/deltaX
 		return H
+
+class UnscentedKalmanFilter(KalmanFilter):
+	def __init__(self, distmesh, im, flow, cuda):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda)
+
+		self.L=numel(x);                                 #numer of states
+		self.m=numel(z);                                 #numer of measurements
+		self.alpha=1e-3;                                 #default, tunable
+		self.ki=0;                                       #default, tunable
+		self.beta=2;                                     #default, tunable
+		#scaling factor
+		self.lmda=self.alpha*alpha*(self.L+self.ki)-self.L;
+		self.c=self.L+self.lmda;                         #scaling factor
+
+	def predict(self):
+		#Setup sigma points and weights
+		Wm=[lambda/c 0.5/c+zeros(1,2*L)];           #weights for means
+		Wc=Wm;
+		Wc(1)=Wc(1)+(1-alpha*alpha+beta);           #weights for covariance
+		c=sqrt(c);
+		X=sigmas(x,P,c);                            #sigma points around x
+		#propagate sigma points 
+		[x1,X1,P1,X2]=ut(fstate,X,Wm,Wc,L,Q);		#unscented transformation of process
+
+	def update(self, y_im, y_flow = None):
+		[z1,Z1,P2,Z2]=ut(hmeas,X1,Wm,Wc,m,R)        #Unscented transformation of measurments
+		P12=X2*diag(Wc)*Z2.T                        #Transformed cross-covariance
+		K=P12*inv(P2)
+		x=x1+K*(z-z1)                               #State update
+		#The problem here is that K is a NxM matrix, which is very large. 
+		#Worse is that P2 is MxM... too big :(
+		P=P1-K*P12.T                                #Covariance update
+
+	def ut(self,f,X,Wm,Wc,n,R):
+		#Unscented Transformation
+		#Input:
+		#        f: nonlinear map
+		#        X: sigma points
+		#       Wm: weights for mean
+		#       Wc: weights for covraiance
+		#        n: numer of outputs of f
+		#        R: additive covariance
+		#Output:
+		#        y: transformed mean
+		#        Y: transformed smapling points
+		#        P: transformed covariance
+		#       Y1: transformed deviations
+		L=size(X,2);
+		y=zeros(n,1);
+		Y=zeros(n,L);
+		for k=1:L                   
+		    Y(:,k)=f(X(:,k));       
+		    y=y+Wm(k)*Y(:,k);       
+		end
+		Y1=Y-y(:,ones(1,L));
+		P=Y1*diag(Wc)*Y1.T+R;          
+		return [y,Y,P,Y1]
+
+	def sigmas(self,x,P,c):
+		#Sigma points around reference point
+		#Inputs:
+		#       x: reference point
+		#       P: covariance
+		#       c: coefficient
+		#Output:
+		#       X: Sigma points		
+		A = c*chol(P).T
+		Y = x(:,ones(1,numel(x)))
+		X = [x Y+A Y-A]

@@ -173,12 +173,12 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, show = False):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, showtracking = False):
 		self.cuda = cuda
-		self.show = show 
+		self.showtracking = showtracking 
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
-		app.Canvas.__init__(self, keys='interactive', title = title, show = show)
+		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking)
 		self.size = (nx, nx)
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -225,7 +225,8 @@ class Renderer(app.Canvas):
 		gloo.set_viewport(0, 0, nx, nx)
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
-		#self.show()
+		if showtracking:
+			self.show()
 		self.on_draw(None)
 		#print self._rendertex1.id
 		#print self.context.shared._parser._objects

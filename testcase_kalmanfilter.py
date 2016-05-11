@@ -14,7 +14,7 @@ import numpy as np
 #import matplotlib.image as mpimg
 import matplotlib.pyplot as plot 
 
-cuda = True
+cuda = False
 gridsize = 80
 threshold = 9
 name = 'test_data'
@@ -58,25 +58,25 @@ for i in range(nF):
 	time.sleep(0.3)
 	#(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
 
-	z_gpu = cuda.initjacobian(frame, flowframe, test = True)
-	z_cpu = cuda.initjacobian_CPU(frame, flowframe, test = True)
-	print 'Test initjacobian'
-	print 'CPU:', z_cpu
-	print 'GPU:', z_gpu
+	#z_gpu = cuda.initjacobian(frame, flowframe, test = True)
+	#z_cpu = cuda.initjacobian_CPU(frame, flowframe, test = True)
+	#print 'Test initjacobian'
+	#print 'CPU:', z_cpu
+	#print 'GPU:', z_gpu
 	
 	#Perturb vertices a bit and rerender
 	#idx = 10
-	for idx in range(160):
-		kf.state.X[idx,0] += deltaX
-		kf.state.refresh()
-		kf.state.render()
-		kf.state.X[idx,0] -= deltaX
+	#for idx in range(160):
+	#	kf.state.X[idx,0] += deltaX
+	#	kf.state.refresh()
+	#	kf.state.render()
+	#	kf.state.X[idx,0] -= deltaX
 	
-		jz_gpu = cuda.jz()
-		jz_cpu = cuda.jz_CPU()
-		print 'Test jz'
-		print 'CPU:', jz_cpu
-		print 'GPU:', jz_gpu
+	#	jz_gpu = cuda.jz()
+	#	jz_cpu = cuda.jz_CPU()
+	#	print 'Test jz'
+	#	print 'CPU:', jz_cpu
+	#	print 'GPU:', jz_gpu
 
 	(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe)
 	print 'Error image:', e_im
