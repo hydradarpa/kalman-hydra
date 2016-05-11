@@ -31,13 +31,13 @@ Ben Lansdell
 """
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('fn_in', default='./video/GCaMP_local_prop.avi', 
+	parser.add_argument('fn_in', default='./video/johntest_brightcontrast_short.avi', 
 		help='input video file, any format readable by OpenCV', nargs = '?')
-	parser.add_argument('flow_in', default='./video/GCaMP_local_prop.avi', 
+	parser.add_argument('flow_in', default='./video/johntest_brightcontrast_short/', 
 		help='input optic flow path', nargs = '?')
-	parser.add_argument('fn_out', default='./video/GCaMP_local_prop_kalman.avi', 
+	parser.add_argument('fn_out', default='./video/johntest_brightcontrast_short_output.avi', 
 		help='avi output video file', nargs='?')
-	parser.add_argument('-n', '--name', default='test', 
+	parser.add_argument('-n', '--name', default='johntest_brightcontrast_short', 
 		help='name for saving run images', nargs='?')
 	parser.add_argument('-t', '--threshold', default=9,
 		help='threshold intensity below which is background', type = int)
@@ -56,9 +56,11 @@ Ben Lansdell
 	distmesh = DistMesh(frame, h0 = args.gridsize)
 	distmesh.createMesh(ctrs, fd, frame, plot = True)
 	
-	#Load flow data from .hdf file
+	#Load flow data from directory
 	#Not implemented
 	flowframe = None #capture.backsub(hdf.read())
+
+
 	kf = KalmanFilter(distmesh, frame, args.cuda)
 	kf.compute(capture.gray_frame(), flowframe)
 	nI = 3

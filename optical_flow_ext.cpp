@@ -20,6 +20,9 @@ using namespace cv::cuda;
 string type2str(int type) {
   string r;
 
+  //printf("CV_MAT_DEPTH_MASK: %d\n", CV_MAT_DEPTH_MASK);
+  //printf("CV_CN_SHIFT: %d\n", CV_CN_SHIFT);
+
   uchar depth = type & CV_MAT_DEPTH_MASK;
   uchar chans = 1 + (type >> CV_CN_SHIFT);
 
@@ -193,6 +196,7 @@ int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy
 	dflowy = planes[1];
 	dflowx.download(flowx);
 	dflowy.download(flowy);
+
 	return 0;
 }
 
@@ -223,6 +227,17 @@ int process(VideoCapture& capture, std::string fn_out) {
 		if (next.empty())
 			break;
 		processflow_gpu(prvs, next, flowx, flowy);
+
+        double minVal; 
+        double maxVal; 
+        Point minLoc; 
+        Point maxLoc;
+
+        cv::minMaxLoc( prvs, &minVal, &maxVal, &minLoc, &maxLoc );
+        printf("max prvs value: %f\n", maxVal);
+        cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
+        printf("max next value: %f\n", maxVal);
+
 		string type;
 		type = type2str(flowx.type());
 		//printf("Matrix type: %s, cols: %d, rows: %d\n", type.c_str(), flowx.cols, flowx.rows);
