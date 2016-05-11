@@ -5,4 +5,4 @@ LIBS=`pkg-config --libs opencv`
 all: opticflow
 
 opticflow:
-	$(CC) $(CLFAGS) optical_flow_ext.cpp $(LIBS) -o optical_flow_ext
+	$(CC) $(CLFAGS) optical_flow_ext.cpp $(LIBS) -o bin/optical_flow_ext
