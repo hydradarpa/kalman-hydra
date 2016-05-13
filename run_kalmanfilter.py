@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, argparse 
-from kalman import KalmanFilter
+from kalman2 import KalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 
@@ -18,6 +18,7 @@ Dependencies:
 -DistMesh 
 -HDF
 -OpenCV2
+-matplotlib
 
 Notes:
 *  Uses OpenGL rendering. If using remotely, you'll need to set up a VirtualGL server
@@ -71,8 +72,8 @@ Ben Lansdell
 		count += 1
 		print 'Frame %d' % count 
 		ret, frame, grayframe = capture.read()
-	#	flowframe = capture.backsub(hdf.read())
-		if ret == False:
+		ret_flow, flowframe = flowstream.read()
+		if ret is False or ret_flow is False:
 			break
 		#for i in range(nI):
 		#	print 'Iteration %d' % i 

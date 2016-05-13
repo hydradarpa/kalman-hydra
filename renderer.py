@@ -10,6 +10,7 @@ from vispy import app
 from imgproc import findObjectThreshold
 import cv2 
 from time import gmtime, strftime
+from matplotlib import pyplot as plt
 
 from cuda import CUDAGL 
 
@@ -533,16 +534,12 @@ class FlowStream:
 
 	def draw(self):
 		"""Draw current flow field"""
-		from matplotlib import pyplot as plt
-
-		gray_flowx = 255.*(self.flowx-np.min(self.flowx))/(np.max(self.flowx)-np.min(self.flowx))
-		gray_flowy = 255.*(self.flowy-np.min(self.flowy))/(np.max(self.flowy)-np.min(self.flowy))
-
+		#gray_flowx = 255.*(self.flowx-np.min(self.flowx))/(np.max(self.flowx)-np.min(self.flowx))
+		#gray_flowy = 255.*(self.flowy-np.min(self.flowy))/(np.max(self.flowy)-np.min(self.flowy))
 		plt.imshow(self.flowx, cmap = 'gray', interpolation = 'bicubic')
 		plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
 		plt.show()
 		print "Waiting for user to close plot window"
-
 		plt.imshow(self.flowy, cmap = 'gray', interpolation = 'bicubic')
 		plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
 		plt.show()
