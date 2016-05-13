@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 import sys, argparse 
 from kalman import KalmanFilter
-from renderer import VideoStream
+from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 
 import pdb 
 
 def main():
-	usage = """run_kalmanfilter.py [input_avi_file] [output_avi_file] [threshold]
+	usage = """run_kalmanfilter.py [input_avi_file] [optic_flow_path] [output_avi_file] [threshold]
 
 HydraGL. State space model using an extended Kalman filter to track Hydra in video
 
@@ -24,7 +24,11 @@ Notes:
 ** If have a CUDA compatible graphics card
 
 Example: 
-./run_kalmanfilter.py ./video/johntest_brightcontrast_short.tif -s 15
+./run_kalmanfilter.py ./video/johntest_brightcontrast_short.avi ... 
+./video/johntest_brightcontrast_short/flow ./video/output.avi -s 15
+
+For help:
+./run_kalmanfilter.py -h 
 
 Ben Lansdell
 02/16/2016
@@ -57,9 +61,7 @@ Ben Lansdell
 	distmesh.createMesh(ctrs, fd, frame, plot = True)
 	
 	#Load flow data from directory
-	#Not implemented
-	flowframe = None #capture.backsub(hdf.read())
-
+	flowstream = FlowStream(args.flow_in)
 
 	kf = KalmanFilter(distmesh, frame, args.cuda)
 	kf.compute(capture.gray_frame(), flowframe)
