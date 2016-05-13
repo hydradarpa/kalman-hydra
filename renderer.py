@@ -10,8 +10,14 @@ from vispy import app
 from imgproc import findObjectThreshold
 import cv2 
 from time import gmtime, strftime
+from matplotlib import pyplot as plt
 
 from cuda import CUDAGL 
+
+from cvtools import * 
+
+CV_MAT_DEPTH_MASK = 7
+CV_CN_SHIFT = 3
 
 VERT_SHADER = """ // simple vertex shader
 
@@ -173,11 +179,12 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, showtracking = False):
 		self.cuda = cuda
+		self.showtracking = showtracking 
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
-		app.Canvas.__init__(self, keys='interactive', title = title)
+		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking)
 		self.size = (nx, nx)
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -212,7 +219,7 @@ class Renderer(app.Canvas):
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
-		self._rendertex1 = gloo.Texture2D((self.shape + (3,)))
+		self._rendertex1 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
 		self._rendertex2 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))
@@ -224,8 +231,15 @@ class Renderer(app.Canvas):
 		gloo.set_viewport(0, 0, nx, nx)
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
-		self.show()
-		self.cudagl = CUDAGL(self._rendertex1, self._fbo1, self._fbo2, self._fbo3, cuda)
+		if showtracking:
+			self.show()
+		self.on_draw(None)
+		#print self._rendertex1.id
+		#print self.context.shared._parser._objects
+		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
+		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
+		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
+		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, cuda)
 
 	def on_resize(self, event):
 		width, height = event.physical_size
@@ -409,18 +423,34 @@ class Renderer(app.Canvas):
 	def initjacobian(self, y_im, y_flow):
 		if self.cuda:
 			self.cudagl.initjacobian(y_im, y_flow)
+			#self.cudagl.initjacobian_CPU(y_im, y_flow)
 		else:
 			self.cudagl.initjacobian_CPU(y_im, y_flow)
 
 	def jz(self):
+		#Compare both and see if they're always off, or just sometimes...
+
 		if self.cuda:
-			return self.cudagl.jz()
+			#print 'jz(). Using GPU (CUDA)'
+			jz_GPU = self.cudagl.jz()
+			#jz_CPU = self.cudagl.jz_CPU()
+			#print 'GPU:', jz_GPU, 'CPU:', jz_CPU
+			return jz_GPU
+
+			#return self.cudagl.jz()
 		else:
+			#print 'Using CPU'
 			return self.cudagl.jz_CPU()
 
 	def j(self, state, deltaX, i, j):
 		if self.cuda:
-			return self.cudagl.j(state, deltaX, i, j)
+			#print 'j(). Using GPU (CUDA)'
+			j_GPU = self.cudagl.j(state, deltaX, i, j)
+			#j_CPU = self.cudagl.j_CPU(state, deltaX, i, j)
+			#print 'GPU:', j_GPU, 'CPU:', j_CPU
+			return j_GPU
+
+			#return self.cudagl.j(state, deltaX, i, j)
 		else:
 			return self.cudagl.j_CPU(state, deltaX, i, j)
 
@@ -483,3 +513,44 @@ class VideoStream:
 
 	def isOpened(self):
 		return self.cap.isOpened()
+
+class FlowStream:
+	def __init__(self, path):
+		print("Creating optic flow stream from " + path + "* ...")
+		self.path = path 
+		self.frame = 0
+		if self.isOpened():
+			print("Opened successfully.")
+		else:
+			print("Cannot find flow data at " + path + "*.")
+
+	def read(self):
+		fn_x = self.path + ("_%03d"%self.frame) + "_x.mat"
+		fn_y = self.path + ("_%03d"%self.frame) + "_y.mat"
+		self.frame += 1
+		self.flowx = readFileToMat(fn_x)
+		self.flowy = readFileToMat(fn_y)
+		return (self.flowx, self.flowy)
+
+	def draw(self):
+		"""Draw current flow field"""
+		#gray_flowx = 255.*(self.flowx-np.min(self.flowx))/(np.max(self.flowx)-np.min(self.flowx))
+		#gray_flowy = 255.*(self.flowy-np.min(self.flowy))/(np.max(self.flowy)-np.min(self.flowy))
+		plt.imshow(self.flowx, cmap = 'gray', interpolation = 'bicubic')
+		plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
+		plt.show()
+		print "Waiting for user to close plot window"
+		plt.imshow(self.flowy, cmap = 'gray', interpolation = 'bicubic')
+		plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
+		plt.show()
+		print "Waiting for user to close plot window"
+
+	def isOpened(self):
+		"""Check if file to be read exists"""
+		from os.path import isfile
+		fn_x = self.path + ("_%03d"%self.frame) + "_x.mat"
+		fn_y = self.path + ("_%03d"%self.frame) + "_y.mat"
+		if isfile(fn_x) and isfile(fn_y):
+			return True 
+		else:
+			return False 

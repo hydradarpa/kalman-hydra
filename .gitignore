@@ -1,5 +1,7 @@
 *.pyc
 *.png
+*.jpg
+*.mat
 video
 testfun/nohup.out
 testfun/optical_flow
@@ -13,3 +15,5 @@ testfun/video-write2
 testfun/video_reader
 testfun/videoreader
 flows
+screenshots
+bin

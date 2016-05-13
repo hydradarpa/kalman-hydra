@@ -6,7 +6,7 @@ from cuda import *
 from distmesh_dyn import DistMesh
 import numpy as np 
 
-fn_in ='./video/GCaMP_local_prop.avi'
+fn_in ='./video/johntest_brightcontrast_short.tif'
 threshold = 9
 
 capture = VideoStream(fn_in, threshold)

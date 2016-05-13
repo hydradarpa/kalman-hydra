@@ -169,7 +169,7 @@ int process(VideoCapture& capture, std::string fn_out) {
 	double minf, maxf, mind, maxd;
 	capture >> frame;
 	cvtColor(frame, prvs, CV_BGR2GRAY);
-
+	//prvs = frame.clone();
     int ex = CV_FOURCC('M', 'J', 'P', 'G');
 	//int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));     // Get Codec Type- Int form
     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH),    // Acquire input size
@@ -183,8 +183,15 @@ int process(VideoCapture& capture, std::string fn_out) {
 	for (;;) {
 		capture >> frame;
 		cvtColor(frame, next, CV_BGR2GRAY);
-		if (next.empty())
-			break;
+		//next = frame.clone();
+		sprintf(filename,"filename%.3d.jpg",n++);
+		//imwrite(filename,dst);
+		imwrite(filename,frame);
+	
+		//printf("Hi");
+		//if (next.empty())
+		//	printf("Hi");
+		//	break;
 		//Process flow
 		processflow_gpu(prvs, next, flow);
 		cv::addWeighted( frame, .7, flow, .3, 0.0, dst);
@@ -224,12 +231,10 @@ void help(char** av) {
 		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename>" << endl
 		 << "q,Q,esc -- quit" << endl
 		 << "space   -- save frame" << endl << endl
-		 << "\tTo capture from a camera pass the device number. To find the device number, try ls /dev/video*" << endl
-		 << "\texample: " << av[0] << " 0" << endl
 		 << "\tYou may also pass a video file instead of a device number" << endl
-		 << "\texample: " << av[0] << " video.avi" << endl
+		 << "\texample: " << av[0] << " video.avi output.avi" << endl
 		 << "\tYou can also pass the path to an image sequence and OpenCV will treat the sequence just like a video." << endl
-		 << "\texample: " << av[0] << " right%%02d.jpg" << endl;
+		 << "\texample: " << av[0] << " right%%02d.jpg output.avi" << endl;
 }
 
 int main(int ac, char** av) {
@@ -237,11 +242,17 @@ int main(int ac, char** av) {
 		help(av);
 		return 1;
 	}
+
 	std::string arg = av[1];
+	//std::string arg = "000.png";
 	std::string fn_out = av[2];
+	//std::string pathToData("000.png");
+
 	VideoCapture capture(arg); //try to open string, this will attempt to open it as a video file or image sequence
+	//VideoCapture capture(pathToData); //try to open string, this will attempt to open it as a video file or image sequence
 	if (!capture.isOpened()) //if this fails, try to open as a video camera, through the use of an integer param
 		capture.open(atoi(arg.c_str()));
+		cout << "Failed to create on first try. Trying using integer argument" << endl;
 	if (!capture.isOpened()) {
 		cerr << "Failed to open the video device, video file or image sequence!\n" << endl;
 		help(av);
