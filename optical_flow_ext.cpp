@@ -209,34 +209,39 @@ int process(VideoCapture& capture, std::string fn_out) {
 	Mat next, prvs, frame, dst, flowx, flowy;
 	double minf, maxf, mind, maxd;
 	capture >> frame;
-	if (frame.channels() == 3)
+	if (frame.channels() == 3) {
 		cvtColor(frame, prvs, CV_BGR2GRAY);
-	else 
+    }
+	else {
 		prvs = frame.clone();
+    }
 
 	for (;;) {
 		sprintf(count, "%03d", n);
 		pathx = fn_out + '_' + count + "_x.mat";
 		pathy = fn_out + '_' + count + "_y.mat";
 		capture >> frame;
-		if (frame.channels() == 3)
+		if (frame.channels() == 3) {
 			cvtColor(frame, next, CV_BGR2GRAY);
-		else 
+            //printf("converting frame to grayscale\n");
+        }
+		else {
 			next = frame.clone();
+        }
 
 		if (next.empty())
 			break;
-		processflow_gpu(prvs, next, flowx, flowy);
 
         double minVal; 
         double maxVal; 
         Point minLoc; 
         Point maxLoc;
-
         cv::minMaxLoc( prvs, &minVal, &maxVal, &minLoc, &maxLoc );
         printf("max prvs value: %f\n", maxVal);
         cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
         printf("max next value: %f\n", maxVal);
+
+		processflow_gpu(prvs, next, flowx, flowy);
 
 		string type;
 		type = type2str(flowx.type());
