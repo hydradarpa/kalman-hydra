@@ -14,13 +14,24 @@ Notes:
 *  Uses OpenGL rendering. If using remotely, you'll need to set up a VirtualGL server
 ** If have a CUDA compatible graphics card
 
-# HydraGL. 
+## HydraGL
+State space model using an extended Kalman filter to track Hydra in video. 
 
-State space model using an extended Kalman filter to track Hydra in video
+How to use:
 
-Example: 
-./run_kalmanfilter.py ./video/johntest_brightcontrast_short.tif -s 15
+run_kalmanfilter.py <input_video> <optic_flow_path> <output_video> [...]
+run_kalmanfilter.py -h for more information
+
+Optic flow must be precomputed and in .mat binary files created using writeMatToFile(). Files must be named:
+[optic_flow_path]_%03d_x.mat and [optic_flow_path]_%03d_y.mat for the X,Y components of the optic flow, respectively. The easiest way to do this is to run bin/optical_flow_ext, which uses a GPU implementation of Brox optic flow [1]
+
+Example: Run with mesh length 15
+./run_kalmanfilter.py ./video/johntest_brightcontrast_short.tif ./video/johntest_brightcontrast_short/flow ./video/output.avi -s 15
 
 ## Algorithm
 
-Implements Kalman filter 
+Implements Kalman filter in which underlying states are  
+
+# References
+[1]
+[2]
