@@ -2,24 +2,24 @@
 Python and C++ code for Hydra optical flow, behavior and neural analysis
 
 Dependencies:
--Vispy*
--Numpy
--PyCuda**
--DistMesh 
--HDF
--OpenCV2
--cvtools (https://github.com/benlansdell/cvtools)
+* Vispy*
+* Numpy
+* PyCuda**
+* DistMesh 
+* HDF
+* OpenCV2
+* cvtools (https://github.com/benlansdell/cvtools)
 
 Notes:
-*  Uses OpenGL rendering. If using remotely, you'll need to set up a VirtualGL server
-** If have a CUDA compatible graphics card
+* *Uses OpenGL rendering. If using remotely, you'll need to set up a VirtualGL server
+* **If have a CUDA compatible graphics card
 
 ## HydraGL
 State space model using an extended Kalman filter to track Hydra in video. 
 
 How to use:
 
-run_kalmanfilter.py <input_video> <optic_flow_path> <output_video> [...]
+run_kalmanfilter.py <input_video> <optic_flow_path> <output_video> [...]\\
 run_kalmanfilter.py -h for more information
 
 Optic flow must be precomputed and in .mat binary files created using writeMatToFile(). Files must be named:
