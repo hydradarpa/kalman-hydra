@@ -8,6 +8,7 @@ Dependencies:
 * DistMesh 
 * OpenCV2
 * cvtools (https://github.com/benlansdell/cvtools)
+* matplotlib
 
 Notes:
 * *Uses OpenGL rendering. If using remotely, you'll need to set up a VirtualGL server
