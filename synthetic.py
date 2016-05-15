@@ -1,4 +1,10 @@
 """Generate synthetic datasets"""
+from imgproc import findObjectThreshold
+from distmesh_dyn import DistMesh
+from kalman2 import KalmanFilter
+
+import numpy as np 
+import cv2 
 
 def test_data(nx, ny):
 	nframes = 10
@@ -136,3 +142,75 @@ def test_data_image(fn = './video/milkyway.jpg'):
 	flow[:,:,0,0] = imnoisey
 
 	return video, flow 
+
+class TestMesh:
+	"""Takes an initial frame (object), creates a mesh and morphs the mesh points
+	over time according to a provided flow field. Saves the results and the true
+	set of mesh points"""
+	def __init__(self, img, flowfield, gridsize = 20, threshold = 8):
+		self.img = img
+		self.nx = img.shape[0]
+		self.ny = img.shape[1]
+		self.threshold = threshold 
+		mask, ctrs, fd = self.backsub()
+		self.distmesh = DistMesh(img, h0 = gridsize)
+		self.distmesh.createMesh(ctrs, fd, img, plot = True)
+		self.t = 0
+		self.flowfield = flowfield
+		self.writer = None
+		flowzeros = np.zeros((self.nx, self.ny, 2))
+		self.kf = KalmanFilter(self.distmesh, img, flowzeros, cuda = False)
+		self.N = self.kf.state.N
+
+	def forward(self):
+		#Update mesh points according to the velocity flow field
+		for i in range(self.N):
+			x = self.kf.state.X[2*i]
+			y = self.kf.state.X[2*i+1]
+			(vx, vy) = self.flowfield([x, y], self.t)
+			self.kf.state.X[2*i] += vx
+			self.kf.state.X[2*i+1] += vy
+			self.kf.state.X[2*self.N + 2*i] = vx
+			self.kf.state.X[2*self.N + 2*i+1] = vy
+
+	def render(self):
+		self.kf.state.renderer.update_vertex_buffer(self.kf.state.vertices(), self.kf.state.velocities())
+		#self.kf.state.renderer.on_draw(None)
+		pred_img = self.kf.state.renderer.getpredimg()
+		return pred_img
+
+	def _createwriter(self, video_out):
+		fourcc = cv2.VideoWriter_fourcc(*'XVID') 
+		framesize = (self.nx, self.ny)
+		self.writer = cv2.VideoWriter(video_out, fourcc, 2.0, framesize[::-1])
+
+	def _strState(self):
+		return "X," + ','.join([str(x[0]) for x in self.kf.state.X]) + '\n'
+
+	def run(self, video_out, mesh_out, steps = 50):
+		#Number of time steps
+		f_out = open(mesh_out, 'w')
+		#Write: mesh size
+		f_out.write("size,%d\n"%self.N)
+		#self._createwriter(video_out)
+		#assert self.writer is not None, "Cannot create VideoWriter object"
+		print "Simulating", steps, "steps of mesh warping"
+		for i in range(steps):
+			self.forward()
+			pred_img = self.render()
+			#self.writer.write(pred_img)
+			#Or just save the images
+			fn_out = video_out + "_frame_%03d"%i + ".png"
+			cv2.imwrite(fn_out,pred_img)
+			f_out.write(self._strState())
+		f_out.close()
+		#self.writer.release()
+		cv2.destroyAllWindows()
+		print "Done"
+
+	def backsub(self):
+		(mask, ctrs, fd) = findObjectThreshold(self.img, threshold = self.threshold)
+		return mask, ctrs, fd
+
+
+

@@ -26,7 +26,7 @@ Notes:
 
 Example: 
 ./run_kalmanfilter.py ./video/johntest_brightcontrast_short.avi ... 
-./video/johntest_brightcontrast_short/flow ./video/output.avi -s 15
+ ./video/johntest_brightcontrast_short/flow ./video/output.avi -s 15
 
 For help:
 ./run_kalmanfilter.py -h 

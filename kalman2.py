@@ -319,22 +319,24 @@ class UnscentedKalmanFilter(KalmanFilter):
 
 	def predict(self):
 		#Setup sigma points and weights
-		Wm=[lambda/c 0.5/c+zeros(1,2*L)];           #weights for means
-		Wc=Wm;
-		Wc(1)=Wc(1)+(1-alpha*alpha+beta);           #weights for covariance
-		c=sqrt(c);
-		X=sigmas(x,P,c);                            #sigma points around x
+		#Wm=[self.lmda/self.c, 0.5/self.c+zeros(1,2*self.L)];           #weights for means
+		#Wc=Wm;
+		#Wc(1)=Wc(1)+(1-self.alpha*self.alpha+self.beta);           #weights for covariance
+		#c=sqrt(c);
+		#X=sigmas(x,P,c);                            #sigma points around x
 		#propagate sigma points 
-		[x1,X1,P1,X2]=ut(fstate,X,Wm,Wc,L,Q);		#unscented transformation of process
+		#[x1,X1,P1,X2]=ut(fstate,X,Wm,Wc,L,Q);		#unscented transformation of process
+		return False 
 
 	def update(self, y_im, y_flow = None):
-		[z1,Z1,P2,Z2]=ut(hmeas,X1,Wm,Wc,m,R)        #Unscented transformation of measurments
-		P12=X2*diag(Wc)*Z2.T                        #Transformed cross-covariance
-		K=P12*inv(P2)
-		x=x1+K*(z-z1)                               #State update
+		#[z1,Z1,P2,Z2]=ut(hmeas,X1,Wm,Wc,m,R)        #Unscented transformation of measurments
+		#P12=X2*diag(Wc)*Z2.T                        #Transformed cross-covariance
+		#K=P12*inv(P2)
+		#x=x1+K*(z-z1)                               #State update
 		#The problem here is that K is a NxM matrix, which is very large. 
 		#Worse is that P2 is MxM... too big :(
-		P=P1-K*P12.T                                #Covariance update
+		#P=P1-K*P12.T                                #Covariance update
+		return False
 
 	def ut(self,f,X,Wm,Wc,n,R):
 		#Unscented Transformation
@@ -353,13 +355,12 @@ class UnscentedKalmanFilter(KalmanFilter):
 		L=size(X,2);
 		y=zeros(n,1);
 		Y=zeros(n,L);
-		for k=1:L                   
-		    Y(:,k)=f(X(:,k));       
-		    y=y+Wm(k)*Y(:,k);       
-		end
-		Y1=Y-y(:,ones(1,L));
-		P=Y1*diag(Wc)*Y1.T+R;          
-		return [y,Y,P,Y1]
+		#for k in range(self.L):                   
+		#	Y(:,k)=f(X(:,k));       
+		#	y=y+Wm(k)*Y(:,k);       
+		#Y1=Y-y(:,ones(1,L));
+		#P=Y1*diag(Wc)*Y1.T+R;          
+		return False #[y,Y,P,Y1]
 
 	def sigmas(self,x,P,c):
 		#Sigma points around reference point
@@ -369,6 +370,7 @@ class UnscentedKalmanFilter(KalmanFilter):
 		#       c: coefficient
 		#Output:
 		#       X: Sigma points		
-		A = c*chol(P).T
-		Y = x(:,ones(1,numel(x)))
-		X = [x Y+A Y-A]
+		#A = c*chol(P).T
+		#Y = x(:,ones(1,numel(x)))
+		#X = [x Y+A Y-A]
+		return False

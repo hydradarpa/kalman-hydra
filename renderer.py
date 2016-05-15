@@ -320,6 +320,12 @@ class Renderer(app.Canvas):
 			self.state = oldstate
 			self.update()
 
+	def getpredimg(self):
+		self.state = 'texture'
+		self.on_draw(None)
+		pixels = gloo.read_pixels()
+		return pixels
+
 	def error(self, state, y_im, y_flow):
 		state.refresh()
 		state.render()
