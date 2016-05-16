@@ -147,14 +147,14 @@ class TestMesh:
 	"""Takes an initial frame (object), creates a mesh and morphs the mesh points
 	over time according to a provided flow field. Saves the results and the true
 	set of mesh points"""
-	def __init__(self, img, flowfield, gridsize = 20, threshold = 8):
+	def __init__(self, img, flowfield, gridsize = 20, threshold = 8, plot = False):
 		self.img = img
 		self.nx = img.shape[0]
 		self.ny = img.shape[1]
 		self.threshold = threshold 
 		mask, ctrs, fd = self.backsub()
 		self.distmesh = DistMesh(img, h0 = gridsize)
-		self.distmesh.createMesh(ctrs, fd, img, plot = True)
+		self.distmesh.createMesh(ctrs, fd, img, plot = plot)
 		self.t = 0
 		self.flowfield = flowfield
 		self.writer = None
