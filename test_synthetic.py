@@ -53,6 +53,7 @@ while(capture.isOpened()):
 	print 'Frame %d' % count 
 	kf.compute(grayframe, flowframe)
 	predstates[count,:] = kf.state.X
+	
 
 print 'Done'
 

@@ -42,9 +42,11 @@ for idx in range(16):
 	print 'GPU:', jz_gpu
 	
 deltaX = 100
-i = 1; j = 14
-j_gpu = cuda.j(kf.state, deltaX, i, j)
-j_cpu = cuda.j_CPU(kf.state, deltaX, i, j)
-print 'Test j'
-print 'CPU:', j_cpu
-print 'GPU:', j_gpu
+#i = 1; j = 14
+for i in range(16):
+	for j in range(16):
+		j_gpu = cuda.j(kf.state, deltaX, i, j)
+		j_cpu = cuda.j_CPU(kf.state, deltaX, i, j)
+		print 'Test j'
+		print 'CPU:', j_cpu
+		print 'GPU:', j_gpu
