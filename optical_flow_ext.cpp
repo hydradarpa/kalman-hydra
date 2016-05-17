@@ -173,7 +173,124 @@ inline bool isFlowCorrect(Point2f u)
 	return !cvIsNaN(u.x) && !cvIsNaN(u.y) && fabs(u.x) < 1e9 && fabs(u.y) < 1e9;
 }
 
-int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy)
+static Vec3b computeColor(float fx, float fy)
+{
+    static bool first = true;
+
+    // relative lengths of color transitions:
+    // these are chosen based on perceptual similarity
+    // (e.g. one can distinguish more shades between red and yellow
+    //  than between yellow and green)
+    const int RY = 15;
+    const int YG = 6;
+    const int GC = 4;
+    const int CB = 11;
+    const int BM = 13;
+    const int MR = 6;
+    const int NCOLS = RY + YG + GC + CB + BM + MR;
+    static Vec3i colorWheel[NCOLS];
+
+    if (first)
+    {
+        int k = 0;
+
+        for (int i = 0; i < RY; ++i, ++k)
+            colorWheel[k] = Vec3i(255, 255 * i / RY, 0);
+
+        for (int i = 0; i < YG; ++i, ++k)
+            colorWheel[k] = Vec3i(255 - 255 * i / YG, 255, 0);
+
+        for (int i = 0; i < GC; ++i, ++k)
+            colorWheel[k] = Vec3i(0, 255, 255 * i / GC);
+
+        for (int i = 0; i < CB; ++i, ++k)
+            colorWheel[k] = Vec3i(0, 255 - 255 * i / CB, 255);
+
+        for (int i = 0; i < BM; ++i, ++k)
+            colorWheel[k] = Vec3i(255 * i / BM, 0, 255);
+
+        for (int i = 0; i < MR; ++i, ++k)
+            colorWheel[k] = Vec3i(255, 0, 255 - 255 * i / MR);
+
+        first = false;
+    }
+
+    const float rad = sqrt(fx * fx + fy * fy);
+    const float a = atan2(-fy, -fx) / (float) CV_PI;
+
+    const float fk = (a + 1.0f) / 2.0f * (NCOLS - 1);
+    const int k0 = static_cast<int>(fk);
+    const int k1 = (k0 + 1) % NCOLS;
+    const float f = fk - k0;
+
+    Vec3b pix;
+
+    for (int b = 0; b < 3; b++)
+    {
+        const float col0 = colorWheel[k0][b] / 255.0f;
+        const float col1 = colorWheel[k1][b] / 255.0f;
+
+        float col = (1 - f) * col0 + f * col1;
+
+        if (rad <= 1)
+            //col = 1 - rad * (1 - col); // increase saturation with radius
+            col = rad * (col); // increase saturation with radius
+        else
+            col *= .75; // out of range
+
+        pix[2 - b] = static_cast<uchar>(255.0 * col);
+    }
+
+    return pix;
+}
+
+static void drawOpticalFlow(const Mat_<float>& flowx, const Mat_<float>& flowy, Mat& dst, float maxmotion = -1)
+{
+    dst.create(flowx.size(), CV_8UC3);
+    dst.setTo(Scalar::all(0));
+
+    // determine motion range:
+    float maxrad = maxmotion;
+
+    if (maxmotion <= 0)
+    {
+        maxrad = 1;
+        for (int y = 0; y < flowx.rows; ++y)
+        {
+            for (int x = 0; x < flowx.cols; ++x)
+            {
+                Point2f u(flowx(y, x), flowy(y, x));
+
+                if (!isFlowCorrect(u))
+                    continue;
+
+                maxrad = max(maxrad, sqrt(u.x * u.x + u.y * u.y));
+            }
+        }
+    }
+
+    for (int y = 0; y < flowx.rows; ++y)
+    {
+        for (int x = 0; x < flowx.cols; ++x)
+        {
+            Point2f u(flowx(y, x), flowy(y, x));
+
+            if (isFlowCorrect(u))
+                dst.at<Vec3b>(y, x) = computeColor(u.x / maxrad, u.y / maxrad);
+        }
+    }
+}
+
+static void showFlow(const char* name, const GpuMat& d_flow, Mat& img)
+{
+    GpuMat planes[2];
+    cuda::split(d_flow, planes);
+    Mat flowx(planes[0]);
+    Mat flowy(planes[1]);
+    drawOpticalFlow(flowx, flowy, img, 10);
+}
+
+int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img)
 {
 	GpuMat d_frame0(frame0);
 	GpuMat d_frame1(frame1);
@@ -188,6 +305,7 @@ int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy
 		brox->calc(d_frame0f, d_frame1f, d_flow);
 		const double timeSec = (getTickCount() - start) / getTickFrequency();
 		cout << "Brox : " << timeSec << " sec" << endl;
+        showFlow("Brox", d_flow, img);
 	}
 	GpuMat planes[2];
 	GpuMat dflowx, dflowy;
@@ -202,11 +320,12 @@ int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy
 
 int process(VideoCapture& capture, std::string fn_out) {
 	int n = 0;
-	std::string pathx, pathy;
+	std::string pathx, pathy, path;
+    path = fn_out + ".avi";
 	char count[3];
 	string window_name = "video | q or esc to quit";
 	cout << "press space to save a picture. q or esc to quit" << endl;
-	Mat next, prvs, frame, dst, flowx, flowy;
+	Mat next, prvs, frame, dst, flowx, flowy, flow, blend;
 	double minf, maxf, mind, maxd;
 	capture >> frame;
 	if (frame.channels() == 3) {
@@ -215,6 +334,17 @@ int process(VideoCapture& capture, std::string fn_out) {
 	else {
 		prvs = frame.clone();
     }
+
+    int ex = CV_FOURCC('M', 'J', 'P', 'G');
+    //int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));     // Get Codec Type- Int form
+    Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH),    // Acquire input size
+                  (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+    VideoWriter outputVideo;                                  // Open the output
+    //outputVideo.open(path, 0, capture.get(CAP_PROP_FPS), S, true);
+    //outputVideo.open(path, ex, capture.get(CAP_PROP_FPS), S, true);
+    //outputVideo.open(path, CV_FOURCC('X','V','I','D'), capture.get(CAP_PROP_FPS), S, true);
+    outputVideo.open(path, ex, 20, S, true);
+
 
 	for (;;) {
 		sprintf(count, "%03d", n);
@@ -241,7 +371,9 @@ int process(VideoCapture& capture, std::string fn_out) {
         cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
         printf("max next value: %f\n", maxVal);
 
-		processflow_gpu(prvs, next, flowx, flowy);
+		processflow_gpu(prvs, next, flowx, flowy, flow);
+        cv::addWeighted( frame, .7, flow, .3, 0.0, blend);
+
 
 		string type;
 		type = type2str(flowx.type());
@@ -257,6 +389,8 @@ int process(VideoCapture& capture, std::string fn_out) {
 		default:
 			break;
 		}
+        //outputVideo << dst;
+        outputVideo.write(dst);
 		writeMatToFile(flowx, pathx);
 		writeMatToFile(flowy, pathy);
 		prvs = next.clone();

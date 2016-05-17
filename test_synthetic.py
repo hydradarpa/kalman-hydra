@@ -39,7 +39,7 @@ distmesh.p = truestates[0,0:(2*nX)].reshape(nX,2)
 predstates[0,:] = truestates[0,:]
 
 flowstream = FlowStream(flow_in)
-ret, flowframe = flowstream.read()
+ret_flow, flowframe = flowstream.read()
 kf = KalmanFilter(distmesh, frame, flowframe, cuda = False)
 
 count = 0
@@ -52,8 +52,8 @@ while(capture.isOpened()):
 		break
 	print 'Frame %d' % count 
 	kf.compute(grayframe, flowframe)
-	predstates[count,:] = kf.state.X
-	
+	predstates[count,:] = np.squeeze(kf.state.X)
+np.save('./synthetictests/' + name + '/' + ff + '.pred.npz', predstates, truestates)	
 
 print 'Done'
 
