@@ -139,12 +139,14 @@ class KalmanFilter:
 		self.predtime = 0
 		self.updatetime = 0
 
-	def compute(self, y_im, y_flow, imageoutput = None):
+	def compute(self, y_im, y_flow, mask, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
-		#self.predict()
-		#self.update(y_im, y_flow)
+		#Mask optic flow frame by contour of y_im
+		y_flowx_mask = np.multiply(mask, y_flow[:,:,0])
+		y_flowy_mask = np.multiply(mask, y_flow[:,:,1])
+		y_flow_mask = np.dstack((y_flowx_mask, y_flowy_mask))
 		pt = timeit(self.predict, number = 1)
-		ut = timeit(lambda: self.update(y_im, y_flow), number = 1)
+		ut = timeit(lambda: self.update(y_im, y_flow_mask), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 

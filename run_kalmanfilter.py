@@ -71,7 +71,7 @@ Ben Lansdell
 	while(capture.isOpened()):
 		count += 1
 		print 'Frame %d' % count 
-		ret, frame, grayframe = capture.read()
+		ret, frame, grayframe, mask = capture.read()
 		ret_flow, flowframe = flowstream.read()
 		if ret is False or ret_flow is False:
 			break
@@ -79,7 +79,7 @@ Ben Lansdell
 		#	print 'Iteration %d' % i 
 		#	raw_input("Finished. Press Enter to continue")
 		#	kf.compute(grayframe, flowframe)
-		kf.compute(grayframe, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
+		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
 	capture.release()
 	output.release()
 	cv2.destroyAllWindows()

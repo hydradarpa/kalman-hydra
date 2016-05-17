@@ -7,6 +7,7 @@ import numpy as np
 
 name = 'square2_gradient'
 ff = 'translate_leftup'
+notes = 'masked'
 
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
@@ -46,14 +47,14 @@ count = 0
 print 'Tracking with Kalman filter'
 while(capture.isOpened()):
 	count += 1
-	ret, frame, grayframe = capture.read()
+	ret, frame, grayframe, mask = capture.read()
 	ret_flow, flowframe = flowstream.read()
 	if ret is False or ret_flow is False:
 		break
 	print 'Frame %d' % count 
-	kf.compute(grayframe, flowframe)
+	kf.compute(grayframe, flowframe, mask)
 	predstates[count,:] = np.squeeze(kf.state.X)
-np.save('./synthetictests/' + name + '/' + ff + '.pred.npz', predstates, truestates)	
+np.save('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
 
 print 'Done'
 

@@ -486,7 +486,7 @@ class VideoStream:
 			#Apply mask
 			backframe = np.multiply(np.dstack((mask, mask, mask)), self.frame)
 			backgrayframe = np.multiply(mask, self.grayframe)		
-			return ret, backframe, backgrayframe 
+			return ret, backframe, backgrayframe, mask
 
 	def current_frame(self, backsub = True):
 		if backsub:
