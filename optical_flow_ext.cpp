@@ -287,7 +287,7 @@ static void showFlow(const char* name, const GpuMat& d_flow, Mat& img)
     cuda::split(d_flow, planes);
     Mat flowx(planes[0]);
     Mat flowy(planes[1]);
-    drawOpticalFlow(flowx, flowy, img, 10);
+    drawOpticalFlow(flowx, flowy, img, 15);
 }
 
 int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img)
@@ -325,7 +325,7 @@ int process(VideoCapture& capture, std::string fn_out) {
 	char count[3];
 	string window_name = "video | q or esc to quit";
 	cout << "press space to save a picture. q or esc to quit" << endl;
-	Mat next, prvs, frame, dst, flowx, flowy, flow, blend;
+	Mat next, prvs, frame, flowx, flowy, flow, blend;
 	double minf, maxf, mind, maxd;
 	capture >> frame;
 	if (frame.channels() == 3) {
@@ -354,8 +354,10 @@ int process(VideoCapture& capture, std::string fn_out) {
 		if (frame.channels() == 3) {
 			cvtColor(frame, next, CV_BGR2GRAY);
             //printf("converting frame to grayscale\n");
+            printf("Converting to grayscale\n");
         }
 		else {
+            printf("Copying, since already grayscale\n");
 			next = frame.clone();
         }
 
@@ -372,7 +374,7 @@ int process(VideoCapture& capture, std::string fn_out) {
         printf("max next value: %f\n", maxVal);
 
 		processflow_gpu(prvs, next, flowx, flowy, flow);
-        cv::addWeighted( frame, .7, flow, .3, 0.0, blend);
+        cv::addWeighted(frame, .4, flow, .6, 0.0, blend);
 
 
 		string type;
@@ -390,7 +392,7 @@ int process(VideoCapture& capture, std::string fn_out) {
 			break;
 		}
         //outputVideo << dst;
-        outputVideo.write(dst);
+        outputVideo.write(blend);
 		writeMatToFile(flowx, pathx);
 		writeMatToFile(flowy, pathy);
 		prvs = next.clone();
