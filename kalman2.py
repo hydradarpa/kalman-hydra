@@ -92,14 +92,14 @@ class KFState:
 			self.X[idx,0] += deltaX
 			self.refresh()
 			self.render()
-			hz = self.renderer.jz()
+			hz = self.renderer.jz(self)
 			Hz[idx,0] = hz/deltaX
 			self.X[idx,0] -= deltaX
 
 			self.X[idx,0] -= deltaX
 			self.refresh()
 			self.render()
-			hz = self.renderer.jz()
+			hz = self.renderer.jz(self)
 			Hz[idx,0] -= hz/deltaX
 			self.X[idx,0] += deltaX
 			Hz[idx,0] = Hz[idx,0]/2
@@ -139,12 +139,15 @@ class KalmanFilter:
 		self.predtime = 0
 		self.updatetime = 0
 
-	def compute(self, y_im, y_flow, mask, imageoutput = None):
+	def compute(self, y_im, y_flow, mask = None, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		#Mask optic flow frame by contour of y_im
-		y_flowx_mask = np.multiply(mask, y_flow[:,:,0])
-		y_flowy_mask = np.multiply(mask, y_flow[:,:,1])
-		y_flow_mask = np.dstack((y_flowx_mask, y_flowy_mask))
+		if mask:
+			y_flowx_mask = np.multiply(mask, y_flow[:,:,0])
+			y_flowy_mask = np.multiply(mask, y_flow[:,:,1])
+			y_flow_mask = np.dstack((y_flowx_mask, y_flowy_mask))
+		else:
+			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask), number = 1)
 		self.predtime += pt
@@ -214,6 +217,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		eps_H = self.state.eps_H
 		for i in range(self.nI):
 			sys.stdout.write('.')
+			sys.stdout.flush()
 			(Hz, HTH) = self.state.update(y_im, y_flow)
 			invW = invW_orig + HTH/eps_H
 			W = np.linalg.inv(invW)

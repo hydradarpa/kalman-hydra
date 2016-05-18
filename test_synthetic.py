@@ -1,4 +1,4 @@
-from kalman2 import KalmanFilter
+from kalman2 import KalmanFilter, IteratedKalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 import os.path 
@@ -41,7 +41,7 @@ predstates[0,:] = truestates[0,:]
 
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
-kf = KalmanFilter(distmesh, frame, flowframe, cuda = False)
+kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = False)
 
 count = 0
 print 'Tracking with Kalman filter'
@@ -58,6 +58,8 @@ np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', pred
 
 print 'Done...'
 print 'How\'d we do?'
+
+
 
 #Compare trajectory computed to actual trajectory (L2 error)
 

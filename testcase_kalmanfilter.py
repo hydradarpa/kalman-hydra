@@ -14,7 +14,7 @@ import numpy as np
 #import matplotlib.image as mpimg
 import matplotlib.pyplot as plot 
 
-cuda = False
+cuda = True
 gridsize = 80
 threshold = 9
 name = 'test_data'
@@ -50,7 +50,8 @@ nF = video.shape[2]
 nI = 10
 count = 0
 
-for i in range(nF):
+#for i in range(nF):
+for i in range(5):
 	count += 1
 	print 'Frame %d' % count 
 	frame = video[:,:,i]
@@ -63,22 +64,29 @@ for i in range(nF):
 	#print 'Test initjacobian'
 	#print 'CPU:', z_cpu
 	#print 'GPU:', z_gpu
-	
-	#Perturb vertices a bit and rerender
+	#
+	##Perturb vertices a bit and rerender
 	#idx = 10
-	#for idx in range(160):
+	#eps = 1e-9
+	#print 'Test jz'
+	#for idx in range(36):
 	#	kf.state.X[idx,0] += deltaX
 	#	kf.state.refresh()
 	#	kf.state.render()
 	#	kf.state.X[idx,0] -= deltaX
-	
-	#	jz_gpu = cuda.jz()
-	#	jz_cpu = cuda.jz_CPU()
-	#	print 'Test jz'
-	#	print 'CPU:', jz_cpu
-	#	print 'GPU:', jz_gpu
+	#
+	#	jz_gpu = cuda.jz(state)
+	#	jz_cpu = cuda.jz_CPU(state)
+	#	print idx, 'CPU:', jz_cpu, 'GPU:', jz_gpu, '% diff:', 100*abs(jz_gpu-jz_cpu)/(jz_cpu+eps)
+	#
+	#print 'Test j'
+	#for i in range(20):
+	#	for j in range(20):
+	#		j_gpu = cuda.j(state, deltaX, i, j)
+	#		j_cpu = cuda.j_CPU(state, deltaX, i, j)
+	#		print i, j, 'CPU:', j_cpu, 'GPU:', j_gpu, '% diff:', 100*abs(j_gpu-j_cpu)/(j_cpu+eps)
 
-	(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, mask)
+	(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, mask = None)
 	print 'Error image:', e_im
 	print 'Error flow x:', e_fx
 	print 'Error flow y:', e_fy

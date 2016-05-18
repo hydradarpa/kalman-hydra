@@ -448,6 +448,10 @@ class CUDAGL:
 
 	def initjacobian(self, y_im_flip, y_flow, test = False):
 		y_im = np.flipud(y_im_flip)
+		yfx = np.flipud(y_flow[:,:,0])
+		yfy = np.flipud(y_flow[:,:,0])
+		y_flow = np.dstack((yfx,yfy))
+
 		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
@@ -573,7 +577,7 @@ class CUDAGL:
 		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
 		return sum_cpu, sum_gpu
 
-	def jz(self):
+	def jz(self, state):
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
 		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo
@@ -581,6 +585,9 @@ class CUDAGL:
 		assert yp_tilde_pbo is not None
 		floatsize = 4 #32bit precision...
 		bytesize = self.height*self.width
+
+		#state.refresh()
+		#state.render()
 
 		pycuda_yp_tilde_pbo.unregister()
 		pycuda_yp_fx_tilde_pbo.unregister()
@@ -626,6 +633,7 @@ class CUDAGL:
 		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
 
 		#Make the call...
+		cuda_driver.Context.synchronize()
 		self.cuda_jz.prepared_call(grid_dimensions, block_dimensions,\
 			 im_mapping.device_ptr(),fx_mapping.device_ptr(),fy_mapping.device_ptr(),\
 			 tilde_im_mapping.device_ptr(),tilde_fx_mapping.device_ptr(),\
@@ -654,7 +662,7 @@ class CUDAGL:
 		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
 		sum_fx_gpu = np.sum(partialsum_fx[0:np.ceil(nBlocks/2.)])
 		sum_fy_gpu = np.sum(partialsum_fy[0:np.ceil(nBlocks/2.)])
-		#print sum_gpu, sum_fx_gpu, sum_fy_gpu 
+		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		return sum_gpu+sum_fx_gpu+sum_fy_gpu
 
 	def j(self, state, deltaX, i, j):
@@ -805,12 +813,12 @@ class CUDAGL:
 		else:
 			return None
 
-	def jz_CPU(self):
+	def jz_CPU(self, state):
 		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
 		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
 		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
 		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
-		#print np.sum(hz), np.sum(hzx), np.sum(hzy)
+		#print 'CPU', np.sum(hz), np.sum(hzx), np.sum(hzy)
 		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
 
 	def j_CPU(self, state, deltaX, i, j):

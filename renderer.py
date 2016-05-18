@@ -433,12 +433,12 @@ class Renderer(app.Canvas):
 		else:
 			self.cudagl.initjacobian_CPU(y_im, y_flow)
 
-	def jz(self):
+	def jz(self, state):
 		#Compare both and see if they're always off, or just sometimes...
 
 		if self.cuda:
 			#print 'jz(). Using GPU (CUDA)'
-			jz_GPU = self.cudagl.jz()
+			jz_GPU = self.cudagl.jz(state)
 			#jz_CPU = self.cudagl.jz_CPU()
 			#print 'GPU:', jz_GPU, 'CPU:', jz_CPU
 			return jz_GPU
@@ -446,7 +446,7 @@ class Renderer(app.Canvas):
 			#return self.cudagl.jz()
 		else:
 			#print 'Using CPU'
-			return self.cudagl.jz_CPU()
+			return self.cudagl.jz_CPU(state)
 
 	def j(self, state, deltaX, i, j):
 		if self.cuda:
