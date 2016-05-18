@@ -35,8 +35,8 @@ nx = 680
 start = nx//3
 end = 2*nx//3
 
-kf = KalmanFilter(distmesh, frame, flowframe, cuda)
-#kf = IteratedKalmanFilter(distmesh, frame, cuda)
+#kf = KalmanFilter(distmesh, frame, flowframe, cuda)
+kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 
 rend = kf.state.renderer

@@ -163,7 +163,7 @@ class KalmanFilter:
 		return self.error(y_im, y_flow)
 
 	def predict(self):
-		print '--Predicting'
+		print '-- predicting'
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 
@@ -184,7 +184,7 @@ class KalmanFilter:
 	def update(self, y_im, y_flow):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
-		print '--Updating'
+		print '-- updating'
 		X = self.state.X
 		W = self.state.W
 		eps_H = self.state.eps_H
@@ -207,7 +207,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		#import rpdb2
 		#rpdb2.start_embedded_debugger("asdf")
 		#np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
-		print '--Updating'
+		print '-- updating'
 		X = self.state.X
 		X_orig = X.copy()
 		W = self.state.W
@@ -216,14 +216,16 @@ class IteratedKalmanFilter(KalmanFilter):
 		invW = np.linalg.inv(W)
 		eps_H = self.state.eps_H
 		for i in range(self.nI):
-			sys.stdout.write('.')
+			sys.stdout.write('   IEKF K = %d\n'%i)
 			sys.stdout.flush()
 			(Hz, HTH) = self.state.update(y_im, y_flow)
 			invW = invW_orig + HTH/eps_H
 			W = np.linalg.inv(invW)
-			X = X_orig + np.dot(W,Hz)/eps_H
+			X = X + np.dot(W,Hz)/eps_H
 			self.state.X = X
 			self.state.W = W 
+			e_im, e_fx, e_fy, fx, fy = self.error(y_im, y_flow)
+			sys.stdout.write('-- e_im: %d, e_fx: %d, e_fy: %d\n'%(e_im, e_fx, e_fy))
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):
