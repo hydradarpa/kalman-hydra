@@ -54,11 +54,9 @@ while(capture.isOpened()):
 	print 'Frame %d' % count 
 	kf.compute(grayframe, flowframe, mask)
 	predstates[count,:] = np.squeeze(kf.state.X)
-np.save('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
+np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
 
-print 'Done'
-
-
+print 'Done...'
 print 'How\'d we do?'
 
 #Compare trajectory computed to actual trajectory (L2 error)
