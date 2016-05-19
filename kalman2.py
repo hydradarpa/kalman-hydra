@@ -17,7 +17,7 @@ from timeit import timeit
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3, vel = None):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3, vel = None, sparse = True):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
@@ -33,6 +33,9 @@ class KFState:
 		self.nx = im.shape[0]
 		self.ny = im.shape[1]
 		self.M = self.nx*self.ny
+
+		#Take advantage of sparsity in Hessian H (default to True)
+		self.sparse = sparse
 
 		#Number of observations
 		self.NZ = self.M
@@ -62,6 +65,22 @@ class KFState:
 		self.Weps = eps_F * np.bmat([[e/4, e/2], [e/2, e]])
 		self.W = np.eye(self._vel.shape[0]*4)
 
+		#Note connectivity of vertices for efficient computing of Hessian H
+		Jv = np.eye(self.N)
+		for t in self.tri:
+			Jv[t[0],t[1]] = 1
+			Jv[t[0],t[2]] = 1
+			Jv[t[1],t[2]] = 1
+			Jv[t[1],t[0]] = 1
+			Jv[t[2],t[0]] = 1
+			Jv[t[2],t[1]] = 1
+
+		#Can actually save more space by not computing the vx and vy cross perturbations
+		#as these will also be orthogonal. But that shouldn't have too big an impact really...
+		e = np.ones((2,2))
+		J = np.kron(Jv, e)
+		self.J = np.kron(e,J)
+
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, showtracking = True)
 
@@ -79,7 +98,10 @@ class KFState:
 
 	def update(self, y_im, y_flow):
 		Hz = self._jacobian(y_im, y_flow)
-		HTH = self._hessian(y_im, y_flow)
+		if self.sparse:
+			HTH = self._hessian_sparse(y_im, y_flow)
+		else: 
+			HTH = self._hessian(y_im, y_flow)
 		return (Hz, HTH)
 
 	def _jacobian(self, y_im, y_flow, deltaX = 2):
@@ -118,7 +140,32 @@ class KFState:
 			for j in range(i, self.size()):
 				hij = self.renderer.j(self, deltaX, i, j)
 				HTH[i,j] = hij/deltaX/deltaX
-				#Fill in the other diagonal
+				#Fill in the other triangle
+				HTH[j,i] = HTH[i,j]
+		self.refresh() 
+		self.render()
+		return HTH
+
+	def _hessian_sparse(self, y_im, y_flow, deltaX = 2):
+		HTH = np.zeros((self.size(),self.size()))
+		self.refresh() 
+		self.render()
+		#Set reference image to unperturbed images
+		self.renderer.initjacobian(y_im, y_flow)
+		#Actually(!) here we only need compute this for vertices that are connected
+		#! this will speed things up significantly. 
+		#! also don't need to do for cross terms between vx and vy
+		#This should become roughly linear... which makes the whole thing more
+		#doable.........for instance, this will chop the time for square1 geometry
+		#by a factor of ~4. Expect greater gains for larger geometries...
+		for i in range(self.size()):
+			for j in range(i, self.size()):
+				if self.J[i,j] == 1:
+					hij = self.renderer.j(self, deltaX, i, j)
+				else:
+					hij = 0.
+				HTH[i,j] = hij/deltaX/deltaX
+				#Fill in the other triangle
 				HTH[j,i] = HTH[i,j]
 		self.refresh() 
 		self.render()
@@ -131,18 +178,18 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, flow, cuda, vel = None):
+	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, flow, cuda, vel=vel)
+		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse)
 		self.predtime = 0
 		self.updatetime = 0
 
 	def compute(self, y_im, y_flow, mask = None, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		#Mask optic flow frame by contour of y_im
-		if mask:
+		if mask is not None:
 			y_flowx_mask = np.multiply(mask, y_flow[:,:,0])
 			y_flowy_mask = np.multiply(mask, y_flow[:,:,1])
 			y_flow_mask = np.dstack((y_flowx_mask, y_flowy_mask))
@@ -199,8 +246,8 @@ class KalmanFilter:
 		return self.state.renderer.error(self.state, y_im, y_flow)
 
 class IteratedKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda)
+	def __init__(self, distmesh, im, flow, cuda, sparse = True):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse)
 		self.nI = 10
 
 	def update(self, y_im, y_flow = None):

@@ -37,6 +37,7 @@ end = 2*nx//3
 
 #kf = KalmanFilter(distmesh, frame, flowframe, cuda)
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
+#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, sparse = False)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 
 rend = kf.state.renderer
@@ -57,6 +58,9 @@ for i in range(5):
 	frame = video[:,:,i]
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
+
+	#(Hz, HTH) = kf.state.update(frame, flowframe)
+
 	#(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
 
 	#z_gpu = cuda.initjacobian(frame, flowframe, test = True)

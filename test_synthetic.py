@@ -5,9 +5,11 @@ import os.path
 import cv2
 import numpy as np 
 
+cuda = True 
+
 name = 'square2_gradient'
 ff = 'translate_leftup'
-notes = 'masked'
+notes = 'masked_iekf'
 
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
@@ -41,7 +43,7 @@ predstates[0,:] = truestates[0,:]
 
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = False)
+kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda)
 
 count = 0
 print 'Tracking with Kalman filter'
