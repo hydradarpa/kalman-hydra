@@ -5,7 +5,8 @@ import os.path
 import cv2
 import numpy as np 
 
-cuda = True 
+cuda = True 			#Use CUDA if available
+sparse = True			#Treat Hessian as sparse (much faster)
 
 name = 'square2_gradient'
 ff = 'translate_leftup'
@@ -43,7 +44,7 @@ predstates[0,:] = truestates[0,:]
 
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda)
+kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 
 count = 0
 print 'Tracking with Kalman filter'
@@ -56,7 +57,7 @@ while(capture.isOpened()):
 	print 'Frame %d' % count 
 	kf.compute(grayframe, flowframe, mask)
 	predstates[count,:] = np.squeeze(kf.state.X)
-np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
+#np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
 
 print 'Done...'
 print 'How\'d we do?'

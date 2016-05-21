@@ -268,7 +268,9 @@ class IteratedKalmanFilter(KalmanFilter):
 			(Hz, HTH) = self.state.update(y_im, y_flow)
 			invW = invW_orig + HTH/eps_H
 			W = np.linalg.inv(invW)
-			X = X + np.dot(W,Hz)/eps_H
+			X = X_orig + np.dot(W,Hz)/eps_H - np.dot(W,np.dot(HTH,X_orig - X))/eps_H
+			#Original version: seems quite wrong/different and yet gives OK results...
+			#X = X + np.dot(W,Hz)/eps_H
 			self.state.X = X
 			self.state.W = W 
 			e_im, e_fx, e_fy, fx, fy = self.error(y_im, y_flow)
