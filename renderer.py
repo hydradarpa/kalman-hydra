@@ -543,8 +543,8 @@ class FlowStream:
 			flowframe = np.zeros((nx, ny, 2), dtype = np.float32)
 			flowframe[:,:,0] = self.flowx 
 			flowframe[:,:,1] = self.flowy
-			ret = True 
-		except OSError:
+			ret = True
+		except IOError:
 			ret = False 
 		return ret, flowframe
 

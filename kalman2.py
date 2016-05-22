@@ -57,6 +57,16 @@ class KFState:
 		b = self._ver[self.tri[:,2],:] - self._ver[self.tri[:,0],:]
 		self.ori = np.sign(np.cross(a,b))
 
+		#Remove faces that are too thin: sin(\theta) is too small
+		self.sineface = np.zeros(len(a))
+		for i in range(len(a)):
+			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
+		nz = abs(self.sineface) > 0.01
+		self.sineface = self.sineface[nz]
+		self.ori = self.ori[nz]
+		self.tri = self.tri[nz]
+		distmesh.t = self.tri 
+
 		#Form state vector
 		self.X = np.vstack((self._ver.reshape((-1,1)), self._vel.reshape((-1,1))))
 		e = np.eye(2*self.N)

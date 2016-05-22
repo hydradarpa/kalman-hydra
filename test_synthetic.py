@@ -5,16 +5,26 @@ import os.path
 import cv2
 import numpy as np 
 
-cuda = True 			#Use CUDA if available
-sparse = True			#Treat Hessian as sparse (much faster)
+from matplotlib import pyplot as plt
 
-name = 'square2_gradient'
+#def test_synthetic(name = 'square2_gradient' ,ff = 'translate_leftup' ,notes = \
+#	'masked_iekf', cuda = True ,sparse = True):
+
+name = 'square3_gradient_texture'
 ff = 'translate_leftup'
 notes = 'masked_iekf'
+cuda = True
+sparse = True
 
+#Input
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
 flow_in = './synthetictests/' + name + '/' + ff + '/' + ff + '_flow'
+
+#Output
+img_out = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/'
+if not os.path.isdir(img_out):
+	os.makedirs(img_out)
 
 gridsize = 50
 threshold = 8
@@ -42,28 +52,43 @@ for i in range(1,nF+1):
 distmesh.p = truestates[0,0:(2*nX)].reshape(nX,2)
 predstates[0,:] = truestates[0,:]
 
+rms_vel = np.zeros(nF)
+rms_pos = np.zeros(nF)
+
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 
 count = 0
 print 'Tracking with Kalman filter'
-while(capture.isOpened()):
+#while(capture.isOpened()):
+for idx in range(1):
 	count += 1
 	ret, frame, grayframe, mask = capture.read()
 	ret_flow, flowframe = flowstream.read()
 	if ret is False or ret_flow is False:
 		break
+
 	print 'Frame %d' % count 
-	kf.compute(grayframe, flowframe, mask)
+	kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+
 	predstates[count,:] = np.squeeze(kf.state.X)
-#np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates)	
+	r_pos = truestates[count,0:(2*nX)]-predstates[count,0:(2*nX)]
+	r_vel = truestates[count,(2*nX):]-predstates[count,(2*nX):]
+	rms_pos[count] = np.sqrt(np.sum(np.multiply(r_pos, r_pos)))
+	rms_vel[count] = np.sqrt(np.sum(np.multiply(r_vel, r_vel)))
+	print 'RMS_pos:', rms_pos[count], 'RMS_vel:', rms_vel[count]
 
-print 'Done...'
-print 'How\'d we do?'
+print 'Saving'
+#np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates, rms_pos, rms_vel)
 
+print 'Done... how\'d we do?'
 
-
-#Compare trajectory computed to actual trajectory (L2 error)
-
-
+#Make plot of tracking error
+plt.plot(range(nF), rms_pos, label='RMS position')
+plt.plot(range(nF), rms_vel, label='RMS velocity')
+pylab.legend(loc='upper left')
+plt.ylabel('RMS')
+plt.xlabel('Frame')
+plt.show()
+plt.save('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred_rms.eps')
