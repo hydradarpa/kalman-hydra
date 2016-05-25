@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <stdio.h>
 
 #include "opencv2/core.hpp"
@@ -290,12 +291,23 @@ static void showFlow(const char* name, const GpuMat& d_flow, Mat& img)
     drawOpticalFlow(flowx, flowy, img, 15);
 }
 
-int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img)
+int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img, float alpha, float gamma, float scale_factor, int inner_it, int outer_it, int solver_it)
 {
 	GpuMat d_frame0(frame0);
 	GpuMat d_frame1(frame1);
 	GpuMat d_flow(frame0.size(), CV_32FC2);
-	Ptr<cuda::BroxOpticalFlow> brox = cuda::BroxOpticalFlow::create(0.197f, 50.0f, 0.8f, 10, 77, 10);
+   
+    /*Brox flow parameters:
+    float alpha_ = smoothness regularization parameter -- higher = more smooth
+    float gamma_ = gradient constancy importance -- higher = greater gradient importance
+                    gradient cosntancy helps with changes in brightness between frames
+    float scale_factor_ = pyramid scale factor = ratio between pyramid scales
+    int inner_iterations_ = number of lagged non-linearity iterations (inner loop)
+    int outer_iterations_ = number of warping iterations (number of pyramid levels)
+    int solver_iterations_ = number of linear system solver iterations
+    */
+	//Ptr<cuda::BroxOpticalFlow> brox = cuda::BroxOpticalFlow::create(0.197f, 50.0f, 0.8f, 10, 77, 10);
+    Ptr<cuda::BroxOpticalFlow> brox = cuda::BroxOpticalFlow::create(alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
 	{
 		GpuMat d_frame0f;
 		GpuMat d_frame1f;
@@ -318,7 +330,7 @@ int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy
 	return 0;
 }
 
-int process(VideoCapture& capture, std::string fn_out) {
+int process(VideoCapture& capture, std::string fn_out, float alpha, float gamma, float scale_factor, int inner_it, int outer_it, int solver_it) {
 	int n = 0;
 	std::string pathx, pathy, path;
     path = fn_out + ".avi";
@@ -373,7 +385,7 @@ int process(VideoCapture& capture, std::string fn_out) {
         cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
         printf("max next value: %f\n", maxVal);
 
-		processflow_gpu(prvs, next, flowx, flowy, flow);
+		processflow_gpu(prvs, next, flowx, flowy, flow, alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
         cv::addWeighted(frame, .4, flow, .6, 0.0, blend);
 
 
@@ -407,7 +419,15 @@ void help(char** av) {
 	cout << "This program captures frames from a video file, image sequence (01.jpg, 02.jpg ... 10.jpg) or camera connected to your computer." << endl
 		 << "It then uses a Brox GPU implementation to compute optic flow" << endl
 		 << endl
-		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename>" << endl
+		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename> [alpha] [gamma] [scale_factor] [inner_it] [outer_it] [solver_it] " << endl
+         << "Parameters:" << endl
+         << "  float alpha = smoothness regularization parameter -- higher = more smooth" << endl
+         << "  float gamma = gradient constancy importance -- higher = greater gradient importance" << endl
+         << "          gradient cosntancy helps with changes in brightness between frames" << endl
+         << "  float scale_factor = pyramid scale factor = ratio between pyramid scales" << endl
+         << "  int inner_iterations = number of lagged non-linearity iterations (inner loop)" << endl
+         << "  int outer_iterations = number of warping iterations (number of pyramid levels)" << endl
+         << "  int solver_iterations = number of linear system solver iterations" << endl
 		 << "q,Q,esc -- quit" << endl
 		 << "space   -- save frame" << endl << endl
 		 << "\tTo capture from a camera pass the device number. To find the device number, try ls /dev/video*" << endl
@@ -419,12 +439,62 @@ void help(char** av) {
 }
 
 int main(int ac, char** av) {
-	if (ac != 3) {
+	if (ac < 3) {
 		help(av);
 		return 1;
 	}
 	std::string arg = av[1];
 	std::string fn_out = av[2];
+
+    float alpha,gamma,scale_factor;
+    int inner_it, outer_it, solver_it;
+
+    //Process Brox parameters
+    if (ac > 3) {
+        //alpha = float(av[3]);
+        std::istringstream iss3( av[3] );
+        iss3 >> alpha; }
+    else
+        alpha = 0.197f;
+    if (ac > 4) {
+        //gamma = float(av[4]);
+        std::istringstream iss4( av[4] );
+        iss4 >> gamma; }
+    else
+        gamma = 50.0f;
+    if (ac > 5) {
+        //scale_factor = float(av[5]);
+        std::istringstream iss5( av[5] );
+        iss5 >> scale_factor; }
+    else
+        scale_factor = 0.8f;
+    if (ac > 6) {
+        //inner_it = int(av[6]);
+        std::istringstream iss6( av[6] );
+        iss6 >> inner_it; }
+    else
+        inner_it = 10;
+    if (ac > 7) {
+        //outer_it = int(av[7]);
+        std::istringstream iss7( av[7] );
+        iss7 >> outer_it; }
+    else
+        outer_it = 77;
+    if (ac > 8) {
+        //solver_it = int(av[8]);
+        std::istringstream iss8( av[8] );
+        iss8 >> solver_it; }
+    else
+        solver_it = 10;
+
+    cout << "Using Brox optic flow parameters:" << endl
+         << "   alpha = " << alpha << " = smoothness regularization parameter" << endl
+         << "   gamma = " << gamma << " = gradient constancy importance" << endl
+         << "   scale_factor = " << scale_factor << " = pyramid scale factor" << endl
+         << "   inner_iterations = " << inner_it << " = number of lagged non-linearity iterations (inner loop)" << endl
+         << "   outer_iterations = " << outer_it << " = number of warping iterations (number of pyramid levels)" << endl
+         << "   solver_iterations = " << solver_it << " = number of linear system solver iterations" << endl;
+
 	VideoCapture capture(arg); //try to open string, this will attempt to open it as a video file or image sequence
 	if (!capture.isOpened()) //if this fails, try to open as a video camera, through the use of an integer param
 		capture.open(atoi(arg.c_str()));
@@ -433,5 +503,5 @@ int main(int ac, char** av) {
 		help(av);
 		return 1;
 	}
-	return process(capture, fn_out);
+	return process(capture, fn_out, alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
 }

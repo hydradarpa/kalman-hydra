@@ -3,19 +3,18 @@ import os.path
 import os
 import cv2
 
-flowfields = {}
+from flowfields import flowfields 
 
-#Velocity fields:
-flowfields['translate_leftup'] = lambda pt,t: (-3, -3)
-flowfields['translate_leftup_stretch'] = lambda pt,t: (-3+pt[0]/200., -3+pt[1]/200.)
+#Note that from this we can compute the _exact_ optic flow of an object...
+#and so can measure the discrepency between the Brox flow and the true flow
 
 #Codecs
 codecs = ['h264', 'libx264', 'huffyuv']
 
 #Select geometry, flow field, grid size
-name = 'square2_gradient'
+name = 'hydra1'
 ff = 'translate_leftup'
-gridsize = 50
+gridsize = 18
 
 fn_in = './synthetictests/' + name + '.png'
 v_out = './synthetictests/' + name + '/' + ff + '/' + ff 
@@ -34,5 +33,4 @@ if os.path.isfile(fn_in):
 	os.system("avconv -i %s_frame_%%03d.png -c:v huffyuv %s.avi" % (v_out, v_out))
 	os.system("./bin/optical_flow_ext %s.avi %s_flow" % (v_out, v_out))
 else:
-	print "Cannot find", fn_in, ", exiting."
-
+	print "Cannot find %s, exiting."%fn_in

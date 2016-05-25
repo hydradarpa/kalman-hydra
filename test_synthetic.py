@@ -11,6 +11,9 @@ from matplotlib import pyplot as plt
 #	'masked_iekf', cuda = True ,sparse = True):
 
 name = 'square3_gradient_texture'
+#name = 'square2_gradient'
+#name = 'square1'
+#ff = 'translate_leftup_stretch'
 ff = 'translate_leftup'
 notes = 'masked_iekf'
 cuda = True
@@ -61,8 +64,8 @@ kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = spar
 
 count = 0
 print 'Tracking with Kalman filter'
-#while(capture.isOpened()):
-for idx in range(1):
+while(capture.isOpened()):
+#for idx in range(1):
 	count += 1
 	ret, frame, grayframe, mask = capture.read()
 	ret_flow, flowframe = flowstream.read()
@@ -70,25 +73,25 @@ for idx in range(1):
 		break
 
 	print 'Frame %d' % count 
-	kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	#kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	kf.compute(grayframe, flowframe, mask)
 
 	predstates[count,:] = np.squeeze(kf.state.X)
 	r_pos = truestates[count,0:(2*nX)]-predstates[count,0:(2*nX)]
 	r_vel = truestates[count,(2*nX):]-predstates[count,(2*nX):]
-	rms_pos[count] = np.sqrt(np.sum(np.multiply(r_pos, r_pos)))
-	rms_vel[count] = np.sqrt(np.sum(np.multiply(r_vel, r_vel)))
+	rms_pos[count] = np.sqrt(np.mean(np.multiply(r_pos, r_pos)))
+	rms_vel[count] = np.sqrt(np.mean(np.multiply(r_vel, r_vel)))
 	print 'RMS_pos:', rms_pos[count], 'RMS_vel:', rms_vel[count]
 
 print 'Saving'
-#np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates, rms_pos, rms_vel)
+np.savez('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred.npz', predstates, truestates, rms_pos, rms_vel)
 
 print 'Done... how\'d we do?'
 
 #Make plot of tracking error
 plt.plot(range(nF), rms_pos, label='RMS position')
 plt.plot(range(nF), rms_vel, label='RMS velocity')
-pylab.legend(loc='upper left')
+plt.legend(loc='upper left')
 plt.ylabel('RMS')
 plt.xlabel('Frame')
-plt.show()
-plt.save('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred_rms.eps')
+plt.savefig('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred_rms.eps')
