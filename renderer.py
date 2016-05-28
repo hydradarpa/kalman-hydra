@@ -184,8 +184,8 @@ class Renderer(app.Canvas):
 		self.showtracking = showtracking 
 		self.state = 'texture'
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
-		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking)
-		self.size = (nx, nx)
+		size = (nx, nx)
+		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
 		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
 		self._quad = gloo.VertexBuffer(self.quad_data)
@@ -228,11 +228,15 @@ class Renderer(app.Canvas):
 
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
-		gloo.set_viewport(0, 0, nx, nx)
+		#gloo.set_viewport(0, 0, nx, nx)
+		#tm.kf.state.renderer._backend._vispy_set_size(1000,1000)
+		#self._backend._vispy_set_size(*size)
+		#gloo.set_viewport(0, 0, *size)
 		gloo.set_clear_color('black')
 		self._timer = app.Timer('auto', connect=self.update, start=True)
 		if showtracking:
 			self.show()
+		gloo.set_viewport(0, 0, *size)
 		self.on_draw(None)
 		#print self._rendertex1.id
 		#print self.context.shared._parser._objects
@@ -240,6 +244,10 @@ class Renderer(app.Canvas):
 		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
 		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, cuda)
+
+		#print self.size
+		#self._backend._vispy_set_size(*size)
+		#print self.size
 
 	def on_resize(self, event):
 		width, height = event.physical_size
@@ -321,7 +329,7 @@ class Renderer(app.Canvas):
 			self.update()
 
 	def getpredimg(self):
-		self.state = 'texture'
+		self.state = 'raw'
 		self.on_draw(None)
 		pixels = gloo.read_pixels()
 		return pixels
