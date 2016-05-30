@@ -1,4 +1,5 @@
 *.pyc
+*.eps
 *.png
 *.jpg
 *.mat
