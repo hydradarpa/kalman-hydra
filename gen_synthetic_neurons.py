@@ -1,4 +1,4 @@
-from synthetic import TestMesh
+from synthetic import TestMeshNeurons
 import os.path
 import os
 import cv2
@@ -21,11 +21,14 @@ def main(argv):
 	codecs = ['h264', 'libx264', 'huffyuv']
 	
 	#Select geometry, flow field, grid size
-	gridsize = 18
+	gridsize = 50
 	
 	fn_in = './synthetictests/' + name + '.png'
+	n_in = './synthetictests/' + name + '_neurons.csv'
+	
 	v_out = './synthetictests/' + name + '/' + ff + '/' + ff 
 	m_out = './synthetictests/' + name + '/' + ff + '_mesh.txt'
+	n_out = './synthetictests/' + name + '/' + ff + '_neurons.txt'
 	
 	if os.path.isfile(fn_in):
 		if not os.path.isdir('./synthetictests/' + name):
@@ -34,13 +37,14 @@ def main(argv):
 			os.makedirs('./synthetictests/' + name + '/' + ff)
 		#Load image as grayscale
 		img = cv2.imread(fn_in,0)
-		tm = TestMesh(img, flowfields[ff], gridsize = gridsize)
-		tm.run(v_out, m_out)
+		tm = TestMeshNeurons(img, n_in, flowfields[ff], gridsize = gridsize, plot = True)
+		tm.run(v_out, m_out, n_out)
 		#Save frames as video, compute optic flow 
 		os.system("avconv -i %s_frame_%%03d.png -c:v huffyuv -y %s.avi" % (v_out, v_out))
+		os.system("avconv -i %s_neuron_frame_%%03d.png -c:v huffyuv -y %s_neurons.avi" % (v_out, v_out))
 		os.system("./bin/optical_flow_ext %s.avi %s_flow" % (v_out, v_out))
 	else:
-		print "Cannot find %s, exiting."%fn_in
+		print "Cannot find %s, exiting."%fn_in	
 
 if __name__ == '__main__':
 	main(sys.argv)

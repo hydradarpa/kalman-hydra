@@ -14,6 +14,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <opencv2/optflow.hpp>
+
 using namespace std;
 using namespace cv;
 using namespace cv::cuda;
@@ -282,55 +284,34 @@ static void drawOpticalFlow(const Mat_<float>& flowx, const Mat_<float>& flowy, 
     }
 }
 
-static void showFlow(const char* name, const GpuMat& d_flow, Mat& img)
+static void showFlow(const char* name, const Mat& flow, Mat& img)
 {
-    GpuMat planes[2];
-    cuda::split(d_flow, planes);
-    Mat flowx(planes[0]);
-    Mat flowy(planes[1]);
-    drawOpticalFlow(flowx, flowy, img, 15);
+    Mat flows[2];
+    cv::split(flow, flows);
+    drawOpticalFlow(flows[0], flows[1], img, 15);
 }
 
-int processflow_gpu(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img, float alpha, float gamma, float scale_factor, int inner_it, int outer_it, int solver_it)
+int processflow(const Mat& frame0, const Mat& frame1, Mat& flowx, Mat& flowy, Mat& img)
 {
-	GpuMat d_frame0(frame0);
-	GpuMat d_frame1(frame1);
-	GpuMat d_flow(frame0.size(), CV_32FC2);
-   
-    /*Brox flow parameters:
-    float alpha_ = smoothness regularization parameter -- higher = more smooth
-    float gamma_ = gradient constancy importance -- higher = greater gradient importance
-                    gradient cosntancy helps with changes in brightness between frames
-    float scale_factor_ = pyramid scale factor = ratio between pyramid scales
-    int inner_iterations_ = number of lagged non-linearity iterations (inner loop)
-    int outer_iterations_ = number of warping iterations (number of pyramid levels)
-    int solver_iterations_ = number of linear system solver iterations
-    */
-	//Ptr<cuda::BroxOpticalFlow> brox = cuda::BroxOpticalFlow::create(0.197f, 50.0f, 0.8f, 10, 77, 10);
-    Ptr<cuda::BroxOpticalFlow> brox = cuda::BroxOpticalFlow::create(alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
-	{
-		GpuMat d_frame0f;
-		GpuMat d_frame1f;
-		d_frame0.convertTo(d_frame0f, CV_32F, 1.0 / 255.0);
-		d_frame1.convertTo(d_frame1f, CV_32F, 1.0 / 255.0);
-		const int64 start = getTickCount();
-		brox->calc(d_frame0f, d_frame1f, d_flow);
-		const double timeSec = (getTickCount() - start) / getTickFrequency();
-		cout << "Brox : " << timeSec << " sec" << endl;
-        showFlow("Brox", d_flow, img);
-	}
-	GpuMat planes[2];
-	GpuMat dflowx, dflowy;
-	cuda::split(d_flow, planes);
-	dflowx = planes[0];
-	dflowy = planes[1];
-	dflowx.download(flowx);
-	dflowy.download(flowy);
+    int layers, ave_block_size, max_flow;
+    max_flow = 10;
+    layers = 10;
+    ave_block_size = 5;
 
+	Mat flow(frame0.size(), CV_32FC2);
+   	const int64 start = getTickCount();
+	cv::optflow::calcOpticalFlowSF(frame0, frame1, flow, layers, ave_block_size, max_flow);
+	const double timeSec = (getTickCount() - start) / getTickFrequency();
+	cout << "SimpleFlow: " << timeSec << " sec" << endl;
+    showFlow("SimpleFlow", flow, img);
+	Mat planes[2];
+	cv::split(flow, planes);
+	flowx = planes[0];
+	flowy = planes[1];
 	return 0;
 }
 
-int process(VideoCapture& capture, std::string fn_out, float alpha, float gamma, float scale_factor, int inner_it, int outer_it, int solver_it) {
+int process(VideoCapture& capture, std::string fn_out) {
 	int n = 0;
 	std::string pathx, pathy, path;
     path = fn_out + ".avi";
@@ -340,8 +321,8 @@ int process(VideoCapture& capture, std::string fn_out, float alpha, float gamma,
 	Mat next, prvs, frame, flowx, flowy, flow, blend;
 	double minf, maxf, mind, maxd;
 	capture >> frame;
-	if (frame.channels() == 3) {
-		cvtColor(frame, prvs, CV_BGR2GRAY);
+	if (frame.channels() == 1) {
+		cvtColor(frame, prvs, CV_GRAY2BGR);
     }
 	else {
 		prvs = frame.clone();
@@ -363,29 +344,29 @@ int process(VideoCapture& capture, std::string fn_out, float alpha, float gamma,
 		pathx = fn_out + '_' + count + "_x.mat";
 		pathy = fn_out + '_' + count + "_y.mat";
 		capture >> frame;
-		if (frame.channels() == 3) {
-			cvtColor(frame, next, CV_BGR2GRAY);
+		if (frame.channels() == 1) {
+			cvtColor(frame, next, CV_GRAY2BGR);
             //printf("converting frame to grayscale\n");
-            printf("Converting to grayscale\n");
+            printf("Converting to 3 channel\n");
         }
 		else {
-            printf("Copying, since already grayscale\n");
+            printf("Copying, since already 3 channel\n");
 			next = frame.clone();
         }
 
 		if (next.empty())
 			break;
 
-        double minVal; 
-        double maxVal; 
-        Point minLoc; 
-        Point maxLoc;
-        cv::minMaxLoc( prvs, &minVal, &maxVal, &minLoc, &maxLoc );
-        printf("max prvs value: %f\n", maxVal);
-        cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
-        printf("max next value: %f\n", maxVal);
+        //double minVal; 
+        //double maxVal; 
+        //Point minLoc; 
+        //Point maxLoc;
+        //cv::minMaxLoc( prvs, &minVal, &maxVal, &minLoc, &maxLoc );
+        //printf("max prvs value: %f\n", maxVal);
+        //cv::minMaxLoc( next, &minVal, &maxVal, &minLoc, &maxLoc );
+        //printf("max next value: %f\n", maxVal);
 
-		processflow_gpu(prvs, next, flowx, flowy, flow, alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
+		processflow(prvs, next, flowx, flowy, flow);
         cv::addWeighted(frame, .4, flow, .6, 0.0, blend);
 
 
@@ -419,15 +400,7 @@ void help(char** av) {
 	cout << "This program captures frames from a video file, image sequence (01.jpg, 02.jpg ... 10.jpg) or camera connected to your computer." << endl
 		 << "It then uses a Brox GPU implementation to compute optic flow" << endl
 		 << endl
-		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename> [alpha] [gamma] [scale_factor] [inner_it] [outer_it] [solver_it] " << endl
-         << "Parameters:" << endl
-         << "  float alpha = smoothness regularization parameter -- higher = more smooth" << endl
-         << "  float gamma = gradient constancy importance -- higher = greater gradient importance" << endl
-         << "          gradient cosntancy helps with changes in brightness between frames" << endl
-         << "  float scale_factor = pyramid scale factor = ratio between pyramid scales" << endl
-         << "  int inner_iterations = number of lagged non-linearity iterations (inner loop)" << endl
-         << "  int outer_iterations = number of warping iterations (number of pyramid levels)" << endl
-         << "  int solver_iterations = number of linear system solver iterations" << endl
+		 << "Usage:\n" << av[0] << " <video file, image sequence or device number> <output filename>" << endl
 		 << "q,Q,esc -- quit" << endl
 		 << "space   -- save frame" << endl << endl
 		 << "\tTo capture from a camera pass the device number. To find the device number, try ls /dev/video*" << endl
@@ -438,6 +411,16 @@ void help(char** av) {
 		 << "\texample: " << av[0] << " right%%02d.jpg output.avi" << endl;
 }
 
+/*         << "Parameters:" << endl
+         << "  float alpha = smoothness regularization parameter -- higher = more smooth" << endl
+         << "  float gamma = gradient constancy importance -- higher = greater gradient importance" << endl
+         << "          gradient cosntancy helps with changes in brightness between frames" << endl
+         << "  float scale_factor = pyramid scale factor = ratio between pyramid scales" << endl
+         << "  int inner_iterations = number of lagged non-linearity iterations (inner loop)" << endl
+         << "  int outer_iterations = number of warping iterations (number of pyramid levels)" << endl
+         << "  int solver_iterations = number of linear system solver iterations" << endl
+*/
+
 int main(int ac, char** av) {
 	if (ac < 3) {
 		help(av);
@@ -446,7 +429,7 @@ int main(int ac, char** av) {
 	std::string arg = av[1];
 	std::string fn_out = av[2];
 
-    float alpha,gamma,scale_factor;
+/*    float alpha,gamma,scale_factor;
     int inner_it, outer_it, solver_it;
 
     //Process Brox parameters
@@ -494,7 +477,7 @@ int main(int ac, char** av) {
          << "   inner_iterations = " << inner_it << " = number of lagged non-linearity iterations (inner loop)" << endl
          << "   outer_iterations = " << outer_it << " = number of warping iterations (number of pyramid levels)" << endl
          << "   solver_iterations = " << solver_it << " = number of linear system solver iterations" << endl;
-
+*/
 	VideoCapture capture(arg); //try to open string, this will attempt to open it as a video file or image sequence
 	if (!capture.isOpened()) //if this fails, try to open as a video camera, through the use of an integer param
 		capture.open(atoi(arg.c_str()));
@@ -503,5 +486,5 @@ int main(int ac, char** av) {
 		help(av);
 		return 1;
 	}
-	return process(capture, fn_out, alpha, gamma, scale_factor, inner_it, outer_it, solver_it);
+	return process(capture, fn_out);
 }

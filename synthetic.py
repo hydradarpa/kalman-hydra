@@ -213,4 +213,71 @@ class TestMesh:
 		return mask, ctrs, fd
 
 
+class TestMeshNeurons(TestMesh):
+	"""Takes an initial frame (object), creates a mesh and morphs the mesh points
+	over time according to a provided flow field. Saves the results and the true
+	set of mesh points"""
+	def __init__(self, img, n_in, flowfield, gridsize = 20, threshold = 8, plot = False):
+		TestMesh.__init__(self, img, flowfield, gridsize, threshold, plot)
+		#Read in neurons
+		neurons = []
+		for line in open(n_in, 'r'):
+			coords = [float(x) for x in line.split(',')[1:3]]
+			neurons.append([coords[0], coords[1]])
+		self.neurons = np.array(neurons)
+		self.nn = len(self.neurons)
 
+	def forward(self):
+		TestMesh.forward(self)
+		#Update neuron positions
+		for i in range(self.nn):
+			x = self.neurons[i,0]
+			y = self.neurons[i,1]
+			(vx, vy) = self.flowfield([x, y], self.t)
+			self.neurons[i,0] += vx
+			self.neurons[i,1] += vy 
+
+	def _strNeurons(self):
+		return "neurons," + ','.join([str(x[0]) for x in self.neurons.reshape(1,-1)]) + '\n'
+
+	def run(self, video_out, mesh_out, n_out, steps = 50):
+		#Number of time steps
+		f_out = open(mesh_out, 'w')
+		#Write: mesh size
+		f_out.write("size,%d\n"%self.N)
+		fneuron_out = open(n_out, 'w')
+		#self._createwriter(video_out)
+		#assert self.writer is not None, "Cannot create VideoWriter object"
+		print "Simulating", steps, "steps of mesh warping"
+		for i in range(steps):
+			self.forward()
+			pred_img = self.render()
+			col_img = cv2.cvtColor(pred_img, cv2.COLOR_RGBA2RGB)
+			#self.writer.write(pred_img)
+			#Or just save the images
+			fn_out = video_out + "_frame_%03d"%i + ".png"
+			cv2.imwrite(fn_out,pred_img)
+			f_out.write(self._strState())
+			fneuron_out.write(self._strNeurons())
+
+			#Draw neurons on top of frame
+			fn_neuron_out = video_out + "_neuron_frame_%03d"%i + ".png"
+			blank = np.zeros(col_img.shape)
+			for j in range(self.nn):
+				#print j
+				x = self.neurons[j,0]
+				y = self.neurons[j,1]
+				center = (int(x),int(y))
+				#ptColor = cv2.cv.CV_RGB(0, 255, 0)
+				ptColor = (255,0,0)
+				cv2.circle(col_img, center, 2, ptColor, -1)
+			cv2.imwrite(fn_neuron_out,col_img)
+
+		f_out.close()
+		fneuron_out.close()
+		#self.writer.release()
+		cv2.destroyAllWindows()
+		print "Done"
+
+	def drawfirstframe(self, fn_out):
+		return 0

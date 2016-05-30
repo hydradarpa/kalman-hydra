@@ -21,14 +21,14 @@ import pandas as pd
 #name = 'square3_gradient_texture'
 #name = 'square2_gradient'
 #name = 'square1'
-name = 'hydra1'
+name = 'hydra_neurons1'
 ff = 'translate_leftup_stretch'
 #ff = 'translate_leftup'
 cuda = True
 sparse = True
 
 #Brox flow:
-#flownotes = ''
+flownotes = ''
 #flownotes = '_solver_it_20' 
 #flownotes = '_solver_it_5'
 #flownotes = '_inner_it_20'
@@ -42,12 +42,15 @@ sparse = True
 #flownotes = '_deep'
 
 #SimpleFlow
-flownotes = '_simple'
+#flownotes = '_simple'
 
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
 #Video and Brox flow in
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
 flow_in = './synthetictests/' + name + '/' + ff + '/' + ff + '_flow' + flownotes
+
+#Neuron tracking data in
+true_neurons = './synthetictests/' + name + '/' + ff + '_neurons.txt'
 
 #Output
 img_out = './synthetictests/' + name + '/' + ff + '_testflow' + flownotes + '/'
