@@ -484,9 +484,17 @@ class VideoStream:
 		self.grayframe = cv2.cvtColor(self.frame,cv2.COLOR_BGR2GRAY)
 
 	def read(self, backsub = True):
-		ret, frame = self.cap.read()
-		self.frame = frame 
-		self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+		try:
+			ret, frame = self.cap.read()
+			self.frame = frame 
+			self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+		except:
+			ret = False
+			frame = None
+			grayframe = None 
+			mask = None 
+			return ret, backframe, grayframe, mask
+
 		if not backsub:
 			return ret, self.frame, self.grayframe
 		else:
