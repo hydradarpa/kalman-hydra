@@ -493,7 +493,7 @@ class VideoStream:
 			frame = None
 			grayframe = None 
 			mask = None 
-			return ret, backframe, grayframe, mask
+			return ret, frame, grayframe, mask
 
 		if not backsub:
 			return ret, self.frame, self.grayframe

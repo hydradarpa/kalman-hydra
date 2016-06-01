@@ -5,13 +5,13 @@ VGPY="/opt/VirtualGL/bin/vglrun ipython"
 runGenSynthetic()
 {
 	echo "runGenSynthetic()"
-	#$VGPY gen_synthetic.py $WARP $GEOM
+	$VGPY gen_synthetic.py $WARP $GEOM
 }
 
 runGenSyntheticNeurons()
 {
 	echo "runGenSyntheticNeurons()"
-	#$VGPY gen_synthetic_neurons.py $WARP $GEOM
+	$VGPY gen_synthetic_neurons.py $WARP $GEOM
 }
 
 analyseFlow()
@@ -20,19 +20,19 @@ analyseFlow()
 	echo "Running for $WARP and $GEOM";
 
 	#Brox flow
-	ipython test_flow.py $WARP $GEOM
+	#ipython test_flow.py $WARP $GEOM
 
-	ipython test_flow.py $WARP $GEOM  _solver_it_20
-	ipython test_flow.py $WARP $GEOM  _solver_it_5
-	ipython test_flow.py $WARP $GEOM  _inner_it_20
-	ipython test_flow.py $WARP $GEOM  _inner_it_5
-	ipython test_flow.py $WARP $GEOM  _alpha_0.4
-	ipython test_flow.py $WARP $GEOM  _alpha_0.1
-	ipython test_flow.py $WARP $GEOM  _gamma_100
-	ipython test_flow.py $WARP $GEOM  _gamma_25
+	#ipython test_flow.py $WARP $GEOM  _solver_it_20
+	#ipython test_flow.py $WARP $GEOM  _solver_it_5
+	#ipython test_flow.py $WARP $GEOM  _inner_it_20
+	#ipython test_flow.py $WARP $GEOM  _inner_it_5
+	#ipython test_flow.py $WARP $GEOM  _alpha_0.4
+	#ipython test_flow.py $WARP $GEOM  _alpha_0.1
+	#ipython test_flow.py $WARP $GEOM  _gamma_100
+	#ipython test_flow.py $WARP $GEOM  _gamma_25
 
 	#Deep flow
-	ipython test_flow.py $WARP $GEOM _deep
+	#ipython test_flow.py $WARP $GEOM _deep
 
 	#Simple flow
 	#ipython test_flow.py $WARP $GEOM _simple

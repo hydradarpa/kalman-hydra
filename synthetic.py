@@ -187,7 +187,7 @@ class TestMesh:
 	def _strState(self):
 		return "X," + ','.join([str(x[0]) for x in self.kf.state.X]) + '\n'
 
-	def run(self, video_out, mesh_out, steps = 50):
+	def run(self, video_out, mesh_out, steps = 100):
 		#Number of time steps
 		f_out = open(mesh_out, 'w')
 		#Write: mesh size
@@ -240,7 +240,7 @@ class TestMeshNeurons(TestMesh):
 	def _strNeurons(self):
 		return "neurons," + ','.join([str(x[0]) for x in self.neurons.reshape(1,-1)]) + '\n'
 
-	def run(self, video_out, mesh_out, n_out, steps = 50):
+	def run(self, video_out, mesh_out, n_out, steps = 100):
 		#Number of time steps
 		f_out = open(mesh_out, 'w')
 		#Write: mesh size

@@ -150,12 +150,12 @@ def main(argv):
 	print 'Done... how\'d we do?'
 
 	df = pd.DataFrame({'abs_flow_sample':pd.Series(abs_flow_sample),\
-		'abs_res_sample':pd.Series(abs_res_sample), \
+		'abs_res_sample':pd.Series(abs_res_sample),\
 		'video_sample':pd.Series(video_sample)})
 
 	#Save output
-	df.to_pickle(img_out + "_flow_errors.pkl")
-	np.save(img_out + "_rms_flow.npz",rms_flow)
+	df.to_pickle(img_out + "flow_errors.pkl")
+	np.save(img_out + "rms_flow.npz",rms_flow)
 
 	g1 = sns.jointplot("video_sample", "abs_res_sample", data = df, kind="kde", color="b")
 	g1.savefig(img_out + 'intensity_abs_res.eps')
