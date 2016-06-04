@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, argparse 
-from kalman2 import KalmanFilter
+from kalman import KalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 

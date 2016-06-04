@@ -1,7 +1,7 @@
 """Generate synthetic datasets"""
 from imgproc import findObjectThreshold
 from distmesh_dyn import DistMesh
-from kalman2 import KalmanFilter
+from kalman import KalmanFilter
 
 import numpy as np 
 import cv2 
