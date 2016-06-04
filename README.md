@@ -1,5 +1,5 @@
 # HydraMesh
-Python and C++ code for Hydra optical flow, behavior and neural analysis
+Python and C++ code for Hydra optical flow, behavior and neural analysis.
 
 Dependencies:
 * Vispy*
@@ -15,7 +15,10 @@ Notes:
 * **If have a CUDA compatible graphics card
 
 ## HydraGL
-State space model using an extended Kalman filter to track Hydra in video. 
+
+A state space model using an extended Kalman filter to track Hydra in video. 
+
+![alt tag](https://github.com/benlansdell/hydra/blob/master/hydra_wireframe_inverted.png)
 
 How to use:
 ```
