@@ -179,7 +179,8 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, showtracking = False):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, showtracking = False):
+
 		self.cuda = cuda
 		self.showtracking = showtracking 
 		self.state = 'texture'
@@ -243,7 +244,7 @@ class Renderer(app.Canvas):
 		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
 		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
-		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, cuda)
+		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, eps_Z, eps_J, cuda)
 
 		#print self.size
 		#self._backend._vispy_set_size(*size)

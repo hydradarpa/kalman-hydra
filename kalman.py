@@ -17,7 +17,7 @@ from timeit import timeit
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_H = 1e-3, vel = None, sparse = True):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, vel = None, sparse = True):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
@@ -40,7 +40,8 @@ class KFState:
 		#Number of observations
 		self.NZ = self.M
 		self.eps_F = eps_F
-		self.eps_H = eps_H
+		self.eps_Z = eps_Z
+		self.eps_J = eps_J
 
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
@@ -92,7 +93,7 @@ class KFState:
 		self.J = np.kron(e,J)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, showtracking = True)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, showtracking = True)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
@@ -244,11 +245,11 @@ class KalmanFilter:
 		print '-- updating'
 		X = self.state.X
 		W = self.state.W
-		eps_H = self.state.eps_H
+		#eps_Z = self.state.eps_Z
 		(Hz, HTH) = self.state.update(y_im, y_flow)
-		invW = np.linalg.inv(W) + HTH/eps_H
+		invW = np.linalg.inv(W) + HTH
 		W = np.linalg.inv(invW)
-		self.state.X = X + np.dot(W,Hz)/eps_H
+		self.state.X = X + np.dot(W,Hz)
 		self.state.W = W 
 
 	def error(self, y_im, y_flow):
@@ -271,16 +272,16 @@ class IteratedKalmanFilter(KalmanFilter):
 		W_orig = W.copy()
 		invW_orig = np.linalg.inv(W)
 		invW = np.linalg.inv(W)
-		eps_H = self.state.eps_H
+		#eps_Z = self.state.eps_Z
 		for i in range(self.nI):
 			sys.stdout.write('   IEKF K = %d\n'%i)
 			sys.stdout.flush()
 			(Hz, HTH) = self.state.update(y_im, y_flow)
-			invW = invW_orig + HTH/eps_H
+			invW = invW_orig + HTH
 			W = np.linalg.inv(invW)
-			X = X_orig + np.dot(W,Hz)/eps_H - np.dot(W,np.dot(HTH,X_orig - X))/eps_H
+			X = X_orig + np.dot(W,Hz) - np.dot(W,np.dot(HTH,X_orig - X))
 			#Original version: seems quite wrong/different and yet gives OK results...
-			#X = X + np.dot(W,Hz)/eps_H
+			#X = X + np.dot(W,Hz)
 			self.state.X = X
 			self.state.W = W 
 			e_im, e_fx, e_fy, fx, fy = self.error(y_im, y_flow)

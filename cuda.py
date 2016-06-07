@@ -38,8 +38,10 @@ TEST_FLOWX = 2
 TEST_FLOWY = 3 
 
 class CUDAGL:
-	def __init__(self, texture, texture_fx, texture_fy, fbo, fbo_fx, fbo_fy, texid, tex_fx_id, tex_fy_id, cuda):
+	def __init__(self, texture, texture_fx, texture_fy, fbo, fbo_fx, fbo_fy, texid, tex_fx_id, tex_fy_id, eps_Z, eps_J, cuda):
 		self.cuda = cuda 
+		self.eps_J = eps_J 
+		self.eps_Z = eps_Z
 		self.texid = texid
 		self.tex_fx_id = tex_fx_id
 		self.tex_fy_id = tex_fy_id
@@ -74,6 +76,9 @@ class CUDAGL:
 			    __shared__ float partialSum_fx[2*{{ block_size }}];
 			    __shared__ float partialSum_fy[2*{{ block_size }}];
 
+			    float eps_J = {{ eps_J }};
+			    float eps_Z = {{ eps_Z }};
+
 			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
 			    unsigned int t = threadIdx.x;
 			    unsigned int s = 2*blockIdx.x*blockDim.x;
@@ -88,9 +93,9 @@ class CUDAGL:
 
 			    if ((s + t) < len)
 			    {
-			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(y_im[s+t]-y_im_t[s+t]))/255.0/255.0;
-			        partialSum_fx[t] = (yp_fx_t[s+t]-y_fx_t[s+t])*(y_fx[s+t]-y_fx_t[s+t]);
-			        partialSum_fy[t] = -(yp_fy_t[s+t]-y_fy_t[s+t])*(y_fy[s+t]+y_fy_t[s+t]);
+			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(y_im[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[t] = (yp_fx_t[s+t]-y_fx_t[s+t])*(y_fx[s+t]-y_fx_t[s+t])/eps_J;
+			        partialSum_fy[t] = -(yp_fy_t[s+t]-y_fy_t[s+t])*(y_fy[s+t]+y_fy_t[s+t])/eps_J;
 			    }
 			    else
 			    {       
@@ -100,9 +105,9 @@ class CUDAGL:
 			    }
 			    if ((s + blockDim.x + t) < len)
 			    {   
-			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(y_im[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0;
-			        partialSum_fx[blockDim.x + t] = (yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*(y_fx[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);
-			        partialSum_fy[blockDim.x + t] = -(yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*(y_fy[s+blockDim.x+t]+y_fy_t[s+blockDim.x+t]);
+			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(y_im[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[blockDim.x + t] = (yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*(y_fx[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])/eps_J;
+			        partialSum_fy[blockDim.x + t] = -(yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*(y_fy[s+blockDim.x+t]+y_fy_t[s+blockDim.x+t])/eps_J;
 			    }
 			    else
 			    {
@@ -141,6 +146,9 @@ class CUDAGL:
 			    __shared__ float partialSum_fy[2*{{ block_size }}];
 			    const unsigned int scale = 1;
 
+			    float eps_J = {{ eps_J }};
+			    float eps_Z = {{ eps_Z }};
+
 			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
 			    unsigned int t = threadIdx.x;
 			    unsigned int s = 2*blockIdx.x*blockDim.x;
@@ -152,9 +160,9 @@ class CUDAGL:
 
 			    if ((s + t) < len)
 			    {
-			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0;
-			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale);
-			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale);
+			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale)/eps_J;
+			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale)/eps_J;
 			        //partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))/255.0;
 			        //partialSum_fx[t] = (ypp_fx_t[s+t]-y_fx_t[s+t]);
 			        //partialSum_fy[t] = (ypp_fy_t[s+t]-y_fy_t[s+t]);
@@ -167,9 +175,9 @@ class CUDAGL:
 			    }
 			    if ((s + blockDim.x + t) < len)
 			    {   
-			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0;
-			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale);
-			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale);
+			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)/eps_J;
+			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)/eps_J;
 			        //partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0;
 			        //partialSum_fx[blockDim.x + t] = (ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);
 			        //partialSum_fy[blockDim.x + t] = (ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t]);
@@ -291,7 +299,7 @@ class CUDAGL:
 			    }
 			}
 
-			//Sum all elements of an input array of floats...
+			//Sum all elements of an input array of floats... (for testing purposes)
 			__global__ void total(float *input, float *output, int len) 
 			{
 			    // Load a segment of the input vector into shared memory
@@ -331,7 +339,7 @@ class CUDAGL:
 			}
 			}
 			""")
-			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE)
+			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z)
 			cuda_module = SourceModule(cuda_source, no_extern_c=1)
 			# The argument "PPP" indicates that the zscore function will take three PBOs as arguments
 			self.cuda_jz = cuda_module.get_function("jz")
@@ -815,9 +823,9 @@ class CUDAGL:
 
 	def jz_CPU(self, state):
 		(yp_tilde, yp_fx_tilde, yp_fy_tilde) = self.get_pixel_data()
-		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
-		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
-		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)/self.eps_Z
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)/self.eps_J
+		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)/self.eps_J
 		#print 'CPU', np.sum(hz), np.sum(hzx), np.sum(hzy)
 		return np.sum(hz) + np.sum(hzx) + np.sum(hzy)
 
@@ -832,14 +840,14 @@ class CUDAGL:
 		state.render()
 		state.X[j,0] -= deltaX
 		(ypp_tilde, ypp_fx_tilde, ypp_fy_tilde) = self.get_pixel_data()
-		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
-		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
-		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
+		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))/self.eps_Z
+		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)/self.eps_J
+		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)/self.eps_J
 
 		#Test
-		hz_t = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
-		hzx_t = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde, dtype=np.float32)
-		hzy_t = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde, dtype=np.float32)
+		hz_t = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))/self.eps_Z
+		hzx_t = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde, dtype=np.float32)/self.eps_J
+		hzy_t = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde, dtype=np.float32)/self.eps_J
 
 		#print 'j_CPU components'
 		#print np.sum(hz_t),np.sum(hzx_t),np.sum(hzy_t)
