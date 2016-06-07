@@ -1,7 +1,7 @@
 from kalman import KalmanFilter, IteratedKalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
-from flowfields import flowfields 
+from synthetic.flowfields import flowfields 
 
 import os.path 
 import cv2

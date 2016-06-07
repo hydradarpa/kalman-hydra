@@ -1,10 +1,10 @@
-from synthetic import TestMesh
+from synth import TestMesh
 import os.path
 import os
 import cv2
 import sys
 
-from flowfields import flowfields 
+from synthetic.flowfields import flowfields 
 
 #Note that from this we can compute the _exact_ optic flow of an object...
 #and so can measure the discrepency between the Brox flow and the true flow
