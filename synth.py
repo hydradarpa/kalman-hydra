@@ -238,7 +238,7 @@ class TestMeshNeurons(TestMesh):
 			self.neurons[i,1] += vy 
 
 	def _strNeurons(self):
-		return "neurons," + ','.join([str(x[0]) for x in self.neurons.reshape(1,-1)]) + '\n'
+		return "neurons," + ','.join([str(x) for x in self.neurons.reshape(1,-1)]) + '\n'
 
 	def run(self, video_out, mesh_out, n_out, steps = 100):
 		#Number of time steps

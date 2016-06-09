@@ -21,7 +21,7 @@ def main(argv):
 	codecs = ['h264', 'libx264', 'huffyuv']
 	
 	#Select geometry, flow field, grid size
-	gridsize = 50
+	gridsize = 30
 	
 	fn_in = './synthetictests/' + name + '.png'
 	n_in = './synthetictests/' + name + '_neurons.csv'

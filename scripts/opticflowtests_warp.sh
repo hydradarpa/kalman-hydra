@@ -41,17 +41,17 @@ analyseFlow()
 runFlow()
 {
 	echo "Running for $WARP and $GEOM";
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_solver_it_20 0.197 50.0 0.8 10 77 20
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_solver_it_5 0.197 50.0 0.8 10 77 5
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_inner_it_20 0.197 50.0 0.8 20 77 10
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_inner_it_5 0.197 50.0 0.8 5 77 10
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_alpha_0.4 0.4 50.0 0.8 10 77 10
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_alpha_0.1 0.1 50.0 0.8 10 77 10
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_gamma_100 0.197 100.0 0.8 10 77 10
-	#./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_gamma_25 0.197 25.0 0.8 10 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_solver_it_20 0.197 50.0 0.8 10 77 20
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_solver_it_5 0.197 50.0 0.8 10 77 5
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_inner_it_20 0.197 50.0 0.8 20 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_inner_it_5 0.197 50.0 0.8 5 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_alpha_0.4 0.4 50.0 0.8 10 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_alpha_0.1 0.1 50.0 0.8 10 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_gamma_100 0.197 100.0 0.8 10 77 10
+	./bin/optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_gamma_25 0.197 25.0 0.8 10 77 10
 	
 	#Deep flow
-	#./bin/deep_optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_deep
+	./bin/deep_optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_deep
 
 #	#Simple flow
 #	#./bin/simple_optical_flow_ext ./synthetictests/$GEOM/$WARP/$WARP.avi ./synthetictests/$GEOM/$WARP/${WARP}_flow_simple	
