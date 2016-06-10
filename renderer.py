@@ -86,6 +86,16 @@ void main()
 }
 """
 
+FRAG_SHADER_MASK = """
+varying vec3 v_vel;
+varying vec4 v_color;
+const float c_zero = 0.0;
+
+void main()
+{
+	gl_FragColor = vec4(1.0, c_zero, c_zero, 1.0);
+}
+"""
 
 FRAG_SHADER_FLOWY = """ // simple fragment shader
 varying vec3 v_vel;
@@ -179,7 +189,7 @@ void main()
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, showtracking = False):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, showtracking = False):
 
 		self.cuda = cuda
 		self.showtracking = showtracking 
@@ -217,15 +227,20 @@ class Renderer(app.Canvas):
 		self._program_flow.bind(self._vbo)
 		self._program_red = gloo.Program(VERT_SHADER, FRAG_SHADER_RED)
 		self._program_green = gloo.Program(VERT_SHADER, FRAG_SHADER_GREEN)
+		self._program_mask = gloo.Program(VERT_SHADER, FRAG_SHADER_MASK)
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
 		self._rendertex1 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
 		self._rendertex2 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
+		#No straightforward 1 bit texture support... possibly can do with some tricks, but also 
+		#possibly not worth it.
+		self._rendertex4 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
+		self._fbo4 = gloo.FrameBuffer(self._rendertex4, gloo.RenderBuffer(self.shape))
 
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
@@ -244,7 +259,8 @@ class Renderer(app.Canvas):
 		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
 		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
-		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._fbo1, self._fbo2, self._fbo3, a, b, c, eps_Z, eps_J, cuda)
+		d=self.context.shared._parser.get_object(self._rendertex4.id)._handle
+		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
 
 		#print self.size
 		#self._backend._vispy_set_size(*size)
@@ -266,6 +282,9 @@ class Renderer(app.Canvas):
 		with self._fbo3:
 			gloo.clear()
 			self._program_flowy.draw('triangles', self.indices_buffer)
+		with self._fbo4:
+			gloo.clear()
+			self._program_mask.draw('triangles', self.indices_buffer)
 
 		#Turn on additive blending
 		gloo.set_state('additive')
@@ -335,7 +354,7 @@ class Renderer(app.Canvas):
 		pixels = gloo.read_pixels()
 		return pixels
 
-	def error(self, state, y_im, y_flow):
+	def error(self, state, y_im, y_flow, y_m):
 		state.refresh()
 		state.render()
 		with self._fbo1:
@@ -344,11 +363,14 @@ class Renderer(app.Canvas):
 			fx = gloo.read_pixels(out_type = np.float32)
 		with self._fbo3:
 			fy = gloo.read_pixels(out_type = np.float32)
+		with self._fbo4:
+			m = gloo.read_pixels()
 
 		e_im = np.sum(np.multiply(y_im-pixels[:,:,0], y_im-pixels[:,:,0]))
 		e_fx = np.sum(np.multiply(y_flow[:,:,0]-fx[:,:,0], y_flow[:,:,0]-fx[:,:,0]))
 		e_fy = np.sum(np.multiply(y_flow[:,:,1]+fy[:,:,0], y_flow[:,:,1]+fy[:,:,0]))
-		return e_im, e_fx, e_fy, fx, fy
+		e_m = np.sum(np.multiply(y_m-m[:,:,0], y_m-m[:,:,0]))
+		return e_im, e_fx, e_fy, e_m, fx, fy
 
 	def update_vertex_buffer(self, vertices, velocities):
 		verdata = np.zeros((self.nP,3))
@@ -367,6 +389,7 @@ class Renderer(app.Canvas):
 		self._program_flowx.bind(self._vbo)
 		self._program_flowy.bind(self._vbo)
 		self._program_flow.bind(self._vbo)
+		self._program_mask.bind(self._vbo)
 
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx):
@@ -419,13 +442,15 @@ class Renderer(app.Canvas):
 
 		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer
 
-	def update_frame(self, y_im, y_flow):
+	def update_frame(self, y_im, y_flow, y_m):
 		self.current_frame = y_im 
 		self.current_texture = gloo.Texture2D(y_im)
 		self.current_flowx = y_flow[:,:,0] 
 		self.current_fx_texture = gloo.Texture2D(y_flow[:,:,0], format="luminance", internalformat="r32f")
 		self.current_flowy = y_flow[:,:,1] 
 		self.current_fy_texture = gloo.Texture2D(y_flow[:,:,1], format="luminance", internalformat="r32f")
+		self.current_mask = y_m
+		self.current_mask_texture = gloo.Texture2D(y_m)
 
 	def get_flow(self):
 		self.on_draw(None)
@@ -435,12 +460,12 @@ class Renderer(app.Canvas):
 			flowy = gloo.read_pixels(out_type = np.float32)
 		return (flowx, flowy)
 
-	def initjacobian(self, y_im, y_flow):
+	def initjacobian(self, y_im, y_flow, y_m):
 		if self.cuda:
-			self.cudagl.initjacobian(y_im, y_flow)
-			#self.cudagl.initjacobian_CPU(y_im, y_flow)
+			self.cudagl.initjacobian(y_im, y_flow, y_m)
+			#self.cudagl.initjacobian_CPU(y_im, y_flow, y_m)
 		else:
-			self.cudagl.initjacobian_CPU(y_im, y_flow)
+			self.cudagl.initjacobian_CPU(y_im, y_flow, y_m)
 
 	def jz(self, state):
 		#Compare both and see if they're always off, or just sometimes...

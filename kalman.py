@@ -17,7 +17,7 @@ from timeit import timeit
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, vel = None, sparse = True):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True):
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
@@ -42,6 +42,7 @@ class KFState:
 		self.eps_F = eps_F
 		self.eps_Z = eps_Z
 		self.eps_J = eps_J
+		self.eps_M = eps_M
 
 		#Fixed quantities
 		#Coordinates relative to texture. Stays constant throughout video
@@ -93,7 +94,7 @@ class KFState:
 		self.J = np.kron(e,J)
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, showtracking = True)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
@@ -107,20 +108,20 @@ class KFState:
 	def render(self):
 		self.renderer.on_draw(None)
 
-	def update(self, y_im, y_flow):
-		Hz = self._jacobian(y_im, y_flow)
+	def update(self, y_im, y_flow, y_m):
+		Hz = self._jacobian(y_im, y_flow, y_m)
 		if self.sparse:
-			HTH = self._hessian_sparse(y_im, y_flow)
+			HTH = self._hessian_sparse(y_im, y_flow, y_m)
 		else: 
-			HTH = self._hessian(y_im, y_flow)
+			HTH = self._hessian(y_im, y_flow, y_m)
 		return (Hz, HTH)
 
-	def _jacobian(self, y_im, y_flow, deltaX = 2):
+	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
-		self.renderer.initjacobian(y_im, y_flow)
+		self.renderer.initjacobian(y_im, y_flow, y_m)
 		for idx in range(self.size()):
 			self.X[idx,0] += deltaX
 			self.refresh()
@@ -140,12 +141,12 @@ class KFState:
 		self.render()
 		return Hz
 
-	def _hessian(self, y_im, y_flow, deltaX = 2):
+	def _hessian(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
-		self.renderer.initjacobian(y_im, y_flow)
+		self.renderer.initjacobian(y_im, y_flow, y_m)
 		#Very inefficient... for now 
 		for i in range(self.size()):
 			for j in range(i, self.size()):
@@ -157,12 +158,12 @@ class KFState:
 		self.render()
 		return HTH
 
-	def _hessian_sparse(self, y_im, y_flow, deltaX = 2):
+	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
-		self.renderer.initjacobian(y_im, y_flow)
+		self.renderer.initjacobian(y_im, y_flow, y_m)
 		#Actually(!) here we only need compute this for vertices that are connected
 		#! this will speed things up significantly. 
 		#! also don't need to do for cross terms between vx and vy
@@ -197,17 +198,17 @@ class KalmanFilter:
 		self.predtime = 0
 		self.updatetime = 0
 
-	def compute(self, y_im, y_flow, mask = None, imageoutput = None):
+	def compute(self, y_im, y_flow, y_m, maskflow = True, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow)
 		#Mask optic flow frame by contour of y_im
-		if mask is not None:
-			y_flowx_mask = np.multiply(mask, y_flow[:,:,0])
-			y_flowy_mask = np.multiply(mask, y_flow[:,:,1])
+		if maskflow is True:
+			y_flowx_mask = np.multiply(y_m, y_flow[:,:,0])
+			y_flowy_mask = np.multiply(y_m, y_flow[:,:,1])
 			y_flow_mask = np.dstack((y_flowx_mask, y_flowy_mask))
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
-		ut = timeit(lambda: self.update(y_im, y_flow_mask), number = 1)
+		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
@@ -239,29 +240,29 @@ class KalmanFilter:
 		#State space size
 		return self.N*4
 
-	def update(self, y_im, y_flow):
+	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 		print '-- updating'
 		X = self.state.X
 		W = self.state.W
 		#eps_Z = self.state.eps_Z
-		(Hz, HTH) = self.state.update(y_im, y_flow)
+		(Hz, HTH) = self.state.update(y_im, y_flow, y_m)
 		invW = np.linalg.inv(W) + HTH
 		W = np.linalg.inv(invW)
 		self.state.X = X + np.dot(W,Hz)
 		self.state.W = W 
 
-	def error(self, y_im, y_flow):
+	def error(self, y_im, y_flow, y_m):
 		#Compute error of current state and current images and flow data
-		return self.state.renderer.error(self.state, y_im, y_flow)
+		return self.state.renderer.error(self.state, y_im, y_flow, y_m)
 
 class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, flow, cuda, sparse = True):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse)
 		self.nI = 10
 
-	def update(self, y_im, y_flow = None):
+	def update(self, y_im, y_flow, y_m):
 		#import rpdb2
 		#rpdb2.start_embedded_debugger("asdf")
 		#np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
@@ -276,7 +277,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		for i in range(self.nI):
 			sys.stdout.write('   IEKF K = %d\n'%i)
 			sys.stdout.flush()
-			(Hz, HTH) = self.state.update(y_im, y_flow)
+			(Hz, HTH) = self.state.update(y_im, y_flow, y_m)
 			invW = invW_orig + HTH
 			W = np.linalg.inv(invW)
 			X = X_orig + np.dot(W,Hz) - np.dot(W,np.dot(HTH,X_orig - X))
@@ -284,8 +285,8 @@ class IteratedKalmanFilter(KalmanFilter):
 			#X = X + np.dot(W,Hz)
 			self.state.X = X
 			self.state.W = W 
-			e_im, e_fx, e_fy, fx, fy = self.error(y_im, y_flow)
-			sys.stdout.write('-- e_im: %d, e_fx: %d, e_fy: %d\n'%(e_im, e_fx, e_fy))
+			e_im, e_fx, e_fy, e_m, fx, fy = self.error(y_im, y_flow, y_m)
+			sys.stdout.write('-- e_im: %d, e_fx: %d, e_fy: %d, e_m: %d\n'%(e_im, e_fx, e_fy, e_m))
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):
