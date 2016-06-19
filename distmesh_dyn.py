@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import distmesh as dm 
+import cPickle 
 import scipy.spatial as spspatial
 import distmesh.mlcompat as ml
 import distmesh.utils as dmutils
@@ -200,3 +201,22 @@ class DistMesh:
 
 	def size(self):
 		return self.N
+
+	def save(self, fn_out):
+		f = open(fn_out, 'wb')
+		for obj in [self.N, self.bars, self.frame, self.dptol, self.nx, self.ny,\
+		 self.bbox, self.ttol, self.Fscale, self.deltat, self.geps, self.deps,\
+		 self.densityctrlfreq, self.k, self.maxiter, self.p, self.t, self.bars, self.L]:
+			cPickle.dump(obj, f, protocol=cPickle.HIGHEST_PROTOCOL)
+		f.close()
+
+	def load(self, fn_in):
+		f = open(fn_in, 'rb')
+		loaded_objects = []
+		for i in range(19):
+			loaded_objects.append(cPickle.load(f))
+		f.close()
+		[self.N, self.bars, self.frame, self.dptol, self.nx, self.ny,\
+		 self.bbox, self.ttol, self.Fscale, self.deltat, self.geps, self.deps,\
+		 self.densityctrlfreq, self.k, self.maxiter, self.p, self.t, self.bars,\
+		 self.L] = loaded_objects

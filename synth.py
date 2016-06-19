@@ -5,6 +5,7 @@ from kalman import KalmanFilter
 
 import numpy as np 
 import cv2 
+import cPickle 
 
 def test_data(nx, ny):
 	nframes = 10
@@ -147,7 +148,7 @@ class TestMesh:
 	"""Takes an initial frame (object), creates a mesh and morphs the mesh points
 	over time according to a provided flow field. Saves the results and the true
 	set of mesh points"""
-	def __init__(self, img, flowfield, gridsize = 20, threshold = 8, plot = False):
+	def __init__(self, img, flowfield, dm_out, gridsize = 20, threshold = 8, plot = False):
 		self.img = img
 		self.nx = img.shape[0]
 		self.ny = img.shape[1]
@@ -155,6 +156,8 @@ class TestMesh:
 		mask, ctrs, fd = self.backsub()
 		self.distmesh = DistMesh(img, h0 = gridsize)
 		self.distmesh.createMesh(ctrs, fd, img, plot = plot)
+		self.distmesh.save(dm_out)
+
 		self.t = 0
 		self.flowfield = flowfield
 		self.writer = None
@@ -217,8 +220,10 @@ class TestMeshNeurons(TestMesh):
 	"""Takes an initial frame (object), creates a mesh and morphs the mesh points
 	over time according to a provided flow field. Saves the results and the true
 	set of mesh points"""
-	def __init__(self, img, n_in, flowfield, gridsize = 20, threshold = 8, plot = False):
+	def __init__(self, img, n_in, flowfield, dm_out, gridsize = 20, threshold = 8, plot = False):
 		TestMesh.__init__(self, img, flowfield, gridsize, threshold, plot)
+		self.distmesh.save(dm_out)
+
 		#Read in neurons
 		neurons = []
 		for line in open(n_in, 'r'):

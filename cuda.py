@@ -530,7 +530,7 @@ class CUDAGL:
 		 pycuda_y_im_pbo, y_im_pbo,\
 		 pycuda_y_fx_pbo, y_fx_pbo,\
 		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo = [None]*24
+		 pycuda_y_m_pbo, y_m_pbo = [None]*32
 
 	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW):
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(pbo))
@@ -704,7 +704,7 @@ class CUDAGL:
 	def jz(self, state):
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
 		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo
 
 		assert yp_tilde_pbo is not None
@@ -920,7 +920,7 @@ class CUDAGL:
 			 p_tilde_mapping.device_ptr(),p_tilde_fx_mapping.device_ptr(),\
 			 p_tilde_fy_mapping.device_ptr(),p_tilde_m_mapping.device_ptr(),\
 			 pp_tilde_mapping.device_ptr(),pp_tilde_fx_mapping.device_ptr(),\
-			 pp_tilde_fy_mapping.device_ptr(),pp_tilde_m_mapping.device_ptr()\
+			 pp_tilde_fy_mapping.device_ptr(),pp_tilde_m_mapping.device_ptr(),\
 			 partialsum_gpu.gpudata, partialsum_fx_gpu.gpudata,\
 			 partialsum_fy_gpu.gpudata, partialsum_m_gpu.gpudata,\
 			 np.uint32(nElements))

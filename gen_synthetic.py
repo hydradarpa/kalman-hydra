@@ -21,11 +21,12 @@ def main(argv):
 	codecs = ['h264', 'libx264', 'huffyuv']
 	
 	#Select geometry, flow field, grid size
-	gridsize = 18
+	gridsize = 30
 	
 	fn_in = './synthetictests/' + name + '.png'
 	v_out = './synthetictests/' + name + '/' + ff + '/' + ff 
 	m_out = './synthetictests/' + name + '/' + ff + '_mesh.txt'
+	dm_out = './synthetictests/' + name + '/' + ff + '_initmesh.pkl'	
 	
 	if os.path.isfile(fn_in):
 		if not os.path.isdir('./synthetictests/' + name):
@@ -34,7 +35,7 @@ def main(argv):
 			os.makedirs('./synthetictests/' + name + '/' + ff)
 		#Load image as grayscale
 		img = cv2.imread(fn_in,0)
-		tm = TestMesh(img, flowfields[ff], gridsize = gridsize)
+		tm = TestMesh(img, flowfields[ff], dm_out, gridsize = gridsize)
 		tm.run(v_out, m_out)
 		#Save frames as video, compute optic flow 
 		os.system("avconv -i %s_frame_%%03d.png -c:v huffyuv -y %s.avi" % (v_out, v_out))

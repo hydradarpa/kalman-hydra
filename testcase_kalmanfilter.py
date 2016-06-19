@@ -56,6 +56,7 @@ for i in range(5):
 	count += 1
 	print 'Frame %d' % count 
 	frame = video[:,:,i]
+	mask = (frame > 0).astype(np.uint8)
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
 
@@ -90,7 +91,8 @@ for i in range(5):
 	#		j_cpu = cuda.j_CPU(state, deltaX, i, j)
 	#		print i, j, 'CPU:', j_cpu, 'GPU:', j_gpu, '% diff:', 100*abs(j_gpu-j_cpu)/(j_cpu+eps)
 
-	(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, mask = None)
+	(e_im, e_fx, e_fy, e_m, fx, fy) = kf.compute(frame, flowframe, mask)
 	print 'Error image:', e_im
 	print 'Error flow x:', e_fx
 	print 'Error flow y:', e_fy
+	print 'Error mask:', e_m

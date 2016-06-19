@@ -228,6 +228,8 @@ class Renderer(app.Canvas):
 		self._program_red = gloo.Program(VERT_SHADER, FRAG_SHADER_RED)
 		self._program_green = gloo.Program(VERT_SHADER, FRAG_SHADER_GREEN)
 		self._program_mask = gloo.Program(VERT_SHADER, FRAG_SHADER_MASK)
+		#self._program_mask['u_color'] = 0, 1, 0, 1
+		self._program_mask.bind(self._vbo)
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
@@ -253,7 +255,8 @@ class Renderer(app.Canvas):
 		if showtracking:
 			self.show()
 		gloo.set_viewport(0, 0, *size)
-		self.on_draw(None)
+		self.render()
+		self.draw(None)
 		#print self._rendertex1.id
 		#print self.context.shared._parser._objects
 		a=self.context.shared._parser.get_object(self._rendertex1.id)._handle
@@ -270,7 +273,7 @@ class Renderer(app.Canvas):
 		width, height = event.physical_size
 		#gloo.set_viewport(0, 0, width, height)
 
-	def on_draw(self, event):
+	def render(self):
 		#Render the current positions to FBO1 
 		with self._fbo1:
 			gloo.clear()
@@ -286,6 +289,10 @@ class Renderer(app.Canvas):
 			gloo.clear()
 			self._program_mask.draw('triangles', self.indices_buffer)
 
+	def on_draw(self, event):
+		self.draw(event)
+
+	def draw(self, event):
 		#Turn on additive blending
 		gloo.set_state('additive')
 		gloo.clear()
@@ -340,7 +347,7 @@ class Renderer(app.Canvas):
 			#change render mode, rerender, and save
 			for state in ['flow', 'raw', 'overlay', 'texture']:
 				self.state = state
-				self.on_draw(None)
+				self.draw(None)
 				pixels = gloo.read_pixels()
 				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 				#print 'Saving screenshot to ' + fn
@@ -349,9 +356,11 @@ class Renderer(app.Canvas):
 			self.update()
 
 	def getpredimg(self):
+		oldstate = self.state
 		self.state = 'raw'
-		self.on_draw(None)
+		self.draw(None)
 		pixels = gloo.read_pixels()
+		self.state = oldstate
 		return pixels
 
 	def error(self, state, y_im, y_flow, y_m):
@@ -369,7 +378,7 @@ class Renderer(app.Canvas):
 		e_im = np.sum(np.multiply(y_im-pixels[:,:,0], y_im-pixels[:,:,0]))
 		e_fx = np.sum(np.multiply(y_flow[:,:,0]-fx[:,:,0], y_flow[:,:,0]-fx[:,:,0]))
 		e_fy = np.sum(np.multiply(y_flow[:,:,1]+fy[:,:,0], y_flow[:,:,1]+fy[:,:,0]))
-		e_m = np.sum(np.multiply(y_m-m[:,:,0], y_m-m[:,:,0]))
+		e_m = np.sum(np.multiply(255*y_m-m[:,:,0], 255*y_m-m[:,:,0]))
 		return e_im, e_fx, e_fy, e_m, fx, fy
 
 	def update_vertex_buffer(self, vertices, velocities):
@@ -449,11 +458,11 @@ class Renderer(app.Canvas):
 		self.current_fx_texture = gloo.Texture2D(y_flow[:,:,0], format="luminance", internalformat="r32f")
 		self.current_flowy = y_flow[:,:,1] 
 		self.current_fy_texture = gloo.Texture2D(y_flow[:,:,1], format="luminance", internalformat="r32f")
-		self.current_mask = y_m
-		self.current_mask_texture = gloo.Texture2D(y_m)
+		self.current_mask = 255*y_m
+		self.current_mask_texture = gloo.Texture2D(255*y_m)
 
 	def get_flow(self):
-		self.on_draw(None)
+		self.render()
 		with self._fbo2:
 			flowx = gloo.read_pixels(out_type = np.float32)
 		with self._fbo3:
@@ -462,10 +471,10 @@ class Renderer(app.Canvas):
 
 	def initjacobian(self, y_im, y_flow, y_m):
 		if self.cuda:
-			self.cudagl.initjacobian(y_im, y_flow, y_m)
-			#self.cudagl.initjacobian_CPU(y_im, y_flow, y_m)
+			self.cudagl.initjacobian(y_im, y_flow, 255*y_m)
+			#self.cudagl.initjacobian_CPU(y_im, y_flow, 255*y_m)
 		else:
-			self.cudagl.initjacobian_CPU(y_im, y_flow, y_m)
+			self.cudagl.initjacobian_CPU(y_im, y_flow, 255*y_m)
 
 	def jz(self, state):
 		#Compare both and see if they're always off, or just sometimes...

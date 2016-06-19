@@ -21,6 +21,7 @@ sparse = True
 
 #Input
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
+dm_in = './synthetictests/' + name + '/' + ff + '_initmesh.pkl'
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
 flow_in = './synthetictests/' + name + '/' + ff + '/' + ff + '_flow'
 
@@ -29,7 +30,7 @@ img_out = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/'
 if not os.path.isdir(img_out):
 	os.makedirs(img_out)
 
-gridsize = 50
+gridsize = 18
 threshold = 8
 
 #Create KF
@@ -38,7 +39,7 @@ capture = VideoStream(v_in, threshold)
 frame = capture.current_frame()
 mask, ctrs, fd = capture.backsub()
 distmesh = DistMesh(frame, h0 = gridsize)
-distmesh.createMesh(ctrs, fd, frame, plot = False)
+distmesh.load(dm_in)
 
 #Load true data
 f_mesh = open(m_in, 'r')
@@ -51,8 +52,6 @@ for i in range(1,nF+1):
 	line = lines[i]
 	truestates[i-1,:] = [float(x) for x in line.split(',')[1:]]
 
-#Update distmesh.p to be exactly the first frame
-distmesh.p = truestates[0,0:(2*nX)].reshape(nX,2)
 predstates[0,:] = truestates[0,:]
 
 rms_vel = np.zeros(nF)

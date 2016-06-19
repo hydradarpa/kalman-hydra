@@ -106,7 +106,7 @@ class KFState:
 		self.renderer.update_vertex_buffer(self.vertices(), self.velocities())
 
 	def render(self):
-		self.renderer.on_draw(None)
+		self.renderer.render()
 
 	def update(self, y_im, y_flow, y_m):
 		Hz = self._jacobian(y_im, y_flow, y_m)
@@ -199,7 +199,7 @@ class KalmanFilter:
 		self.updatetime = 0
 
 	def compute(self, y_im, y_flow, y_m, maskflow = True, imageoutput = None):
-		self.state.renderer.update_frame(y_im, y_flow)
+		self.state.renderer.update_frame(y_im, y_flow, y_m)
 		#Mask optic flow frame by contour of y_im
 		if maskflow is True:
 			y_flowx_mask = np.multiply(y_m, y_flow[:,:,0])
@@ -219,7 +219,7 @@ class KalmanFilter:
 		if imageoutput is not None:
 			self.state.renderer.screenshot(saveall=True, basename = imageoutput)
 		#Compute error between predicted image and actual frames
-		return self.error(y_im, y_flow)
+		return self.error(y_im, y_flow, y_m)
 
 	def predict(self):
 		print '-- predicting'
@@ -261,6 +261,7 @@ class IteratedKalmanFilter(KalmanFilter):
 	def __init__(self, distmesh, im, flow, cuda, sparse = True):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse)
 		self.nI = 10
+		self.reltol = 1e-3
 
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2
@@ -273,6 +274,11 @@ class IteratedKalmanFilter(KalmanFilter):
 		W_orig = W.copy()
 		invW_orig = np.linalg.inv(W)
 		invW = np.linalg.inv(W)
+
+		eold = 0
+		enew = 0
+		conv = False
+
 		#eps_Z = self.state.eps_Z
 		for i in range(self.nI):
 			sys.stdout.write('   IEKF K = %d\n'%i)
@@ -286,7 +292,16 @@ class IteratedKalmanFilter(KalmanFilter):
 			self.state.X = X
 			self.state.W = W 
 			e_im, e_fx, e_fy, e_m, fx, fy = self.error(y_im, y_flow, y_m)
+			enew = np.sqrt(e_im*e_im + e_fx*e_fx + e_fy*e_fy + e_m*e_m)
 			sys.stdout.write('-- e_im: %d, e_fx: %d, e_fy: %d, e_m: %d\n'%(e_im, e_fx, e_fy, e_m))
+			if abs(enew-eold)/enew < self.reltol:
+				conv = True
+				print 'Reached error tolerance.'
+				break 
+			eold = enew 
+			
+		if conv is False:
+			print 'Reached max iterations.'
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):

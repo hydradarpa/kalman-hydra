@@ -12,9 +12,7 @@ from scipy import interpolate
 import seaborn as sns
 import pandas as pd 
 
-#Here we load a computed optic flow from the Brox GPU method
-#and compare it to the true flow... and plot the magnitude of the discrepency 
-#for each frame.................
+NOT IMPLEMENTED YET
 
 #name = 'square5_gradient_texture_rot2'
 #name = 'square4_gradient_texture_rot1'
@@ -45,6 +43,7 @@ flownotes = ''
 #flownotes = '_simple'
 
 m_in = './synthetictests/' + name + '/' + ff + '_mesh.txt'
+dm_in = './synthetictests/' + name + '/' + ff + '_initmesh.pkl'
 #Video and Brox flow in
 v_in = './synthetictests/' + name + '/' + ff + '/' + ff + '.avi'
 flow_in = './synthetictests/' + name + '/' + ff + '/' + ff + '_flow' + flownotes

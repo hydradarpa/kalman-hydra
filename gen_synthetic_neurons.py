@@ -29,6 +29,7 @@ def main(argv):
 	v_out = './synthetictests/' + name + '/' + ff + '/' + ff 
 	m_out = './synthetictests/' + name + '/' + ff + '_mesh.txt'
 	n_out = './synthetictests/' + name + '/' + ff + '_neurons.txt'
+	dm_out = './synthetictests/' + name + '/' + ff + '_initmesh.pkl'	
 	
 	if os.path.isfile(fn_in):
 		if not os.path.isdir('./synthetictests/' + name):
@@ -37,7 +38,7 @@ def main(argv):
 			os.makedirs('./synthetictests/' + name + '/' + ff)
 		#Load image as grayscale
 		img = cv2.imread(fn_in,0)
-		tm = TestMeshNeurons(img, n_in, flowfields[ff], gridsize = gridsize, plot = True)
+		tm = TestMeshNeurons(img, n_in, flowfields[ff], dm_out, gridsize = gridsize, plot = True)
 		tm.run(v_out, m_out, n_out)
 		#Save frames as video, compute optic flow 
 		os.system("avconv -i %s_frame_%%03d.png -c:v huffyuv -y %s.avi" % (v_out, v_out))
