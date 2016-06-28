@@ -1,6 +1,8 @@
 # HydraMesh
 Python and C++ code for Hydra optical flow, behavior and neural analysis.
 
+lansdell 2016
+
 Dependencies:
 * Vispy*
 * Numpy
