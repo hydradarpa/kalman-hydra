@@ -63,7 +63,7 @@ class KFState:
 		self.sineface = np.zeros(len(a))
 		for i in range(len(a)):
 			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
-		nz = abs(self.sineface) > 0.01
+		nz = abs(self.sineface) > 0.06
 		self.sineface = self.sineface[nz]
 		self.ori = self.ori[nz]
 		self.tri = self.tri[nz]
@@ -190,11 +190,11 @@ class KFState:
 		return self.X[(2*self.N):].reshape((-1,2))
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True):
+	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse)
+		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.predtime = 0
 		self.updatetime = 0
 
@@ -258,10 +258,10 @@ class KalmanFilter:
 		return self.state.renderer.error(self.state, y_im, y_flow, y_m)
 
 class IteratedKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse)
-		self.nI = 10
-		self.reltol = 1e-3
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		self.nI = nI
+		self.reltol = 1e-4
 
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2

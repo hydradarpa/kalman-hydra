@@ -300,6 +300,7 @@ class Renderer(app.Canvas):
 		if self.state == 'texture' or self.state == 'raw':
 			self._program.draw('triangles', self.indices_buffer)
 		elif self.state == 'flow':
+			self._program_flow.bind(self._vbo)
 			self._program_flow.draw('triangles', self.indices_buffer)			
 		else:
 			self._program_red['texture1'] = self.current_texture
@@ -329,11 +330,13 @@ class Renderer(app.Canvas):
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
 		with self._fbo2:
+			print 'saving flowx'
 			pixels = gloo.read_pixels(out_type = np.float32)[:,:,0]
 			fn = './' + basename + '_flowx_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
-			print np.max(pixels)
+			#print np.max(pixels)
 			cv2.imwrite(fn, (255.*(pixels-np.min(pixels))/(np.max(pixels)-np.min(pixels))).astype(int))
 		with self._fbo3:
+			print 'saving flowy'
 			pixels = gloo.read_pixels(out_type = np.float32)[:,:,0]
 			fn = './' + basename + '_flowy_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 			cv2.imwrite(fn, (255.*(pixels-np.min(pixels))/(np.max(pixels)-np.min(pixels))).astype(int))
@@ -345,7 +348,9 @@ class Renderer(app.Canvas):
 		else:
 			oldstate = self.state
 			#change render mode, rerender, and save
-			for state in ['flow', 'raw', 'overlay', 'texture']:
+			#for state in ['flow', 'raw', 'overlay', 'texture']:
+			for state in ['raw', 'overlay', 'texture']:
+				print 'saving', state
 				self.state = state
 				self.draw(None)
 				pixels = gloo.read_pixels()
