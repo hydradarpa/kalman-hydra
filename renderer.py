@@ -342,6 +342,7 @@ class Renderer(app.Canvas):
 			cv2.imwrite(fn, (255.*(pixels-np.min(pixels))/(np.max(pixels)-np.min(pixels))).astype(int))
 		if not saveall:
 			pixels = gloo.read_pixels()
+			pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
 			fn = './' + basename + '_' + self.state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
@@ -354,6 +355,7 @@ class Renderer(app.Canvas):
 				self.state = state
 				self.draw(None)
 				pixels = gloo.read_pixels()
+				pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
 				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 				#print 'Saving screenshot to ' + fn
 				cv2.imwrite(fn, pixels)
