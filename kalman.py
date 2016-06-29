@@ -334,7 +334,13 @@ class IteratedKalmanFilter(KalmanFilter):
 				conv = True
 				print 'Reached error tolerance.'
 				break 
-			eold = enew 
+			eold = enew
+
+		#Determine updates per component for diagnostics 
+		self.tv = np.dot(W, np.squeeze(Hz_components[:,0]))
+		self.fv = np.dot(W, np.squeeze(Hz_components[:,1]+Hz_components[:,2]))
+		self.mv = np.dot(W, np.squeeze(Hz_components[:,3]))
+
 			
 		if conv is False:
 			print 'Reached max iterations.'
