@@ -12,6 +12,7 @@ from renderer import Renderer
 
 import pdb
 import sys
+from time import gmtime, strftime
 from timeit import timeit 
 
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
@@ -109,15 +110,16 @@ class KFState:
 		self.renderer.render()
 
 	def update(self, y_im, y_flow, y_m):
-		Hz = self._jacobian(y_im, y_flow, y_m)
+		(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
 		if self.sparse:
 			HTH = self._hessian_sparse(y_im, y_flow, y_m)
 		else: 
 			HTH = self._hessian(y_im, y_flow, y_m)
-		return (Hz, HTH)
+		return (Hz, HTH, Hz_components)
 
 	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
+		Hz_components = np.zeros((self.size(),4))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
@@ -126,20 +128,23 @@ class KFState:
 			self.X[idx,0] += deltaX
 			self.refresh()
 			self.render()
-			hz = self.renderer.jz(self)
+			(hz, hzc) = self.renderer.jz(self)
 			Hz[idx,0] = hz/deltaX
+			Hz_components[idx,:] = hzc/deltaX
 			self.X[idx,0] -= deltaX
 
 			self.X[idx,0] -= deltaX
 			self.refresh()
 			self.render()
-			hz = self.renderer.jz(self)
+			(hz, hzc) = self.renderer.jz(self)
 			Hz[idx,0] -= hz/deltaX
+			Hz_components[idx,:] -= hzc/deltaX
 			self.X[idx,0] += deltaX
 			Hz[idx,0] = Hz[idx,0]/2
+			Hz_components[idx,:] = Hz_components[idx,:]/2
 		self.refresh() 
 		self.render()
-		return Hz
+		return (Hz, Hz_components)
 
 	def _hessian(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
@@ -198,6 +203,29 @@ class KalmanFilter:
 		self.predtime = 0
 		self.updatetime = 0
 
+	def plotforces(self, overlay, imageoutput):
+		#Get original pt locations
+		ox = self.orig_x[0:(2*self.N)].reshape((-1,2))
+		#Get prediction location
+		px = self.pred_x[0:(2*self.N)].reshape((-1,2))
+		#Get template, flow and mask 'force'
+		tv = self.tv[0:(2*self.N)].reshape((-1,2))
+		fv = self.fv[0:(2*self.N)].reshape((-1,2))
+		mv = self.mv[0:(2*self.N)].reshape((-1,2))
+
+		for idx in range(self.N):
+			cv2.arrowedLine(overlay, (int(ox[idx,0]),int(ox[idx,1])),\
+			 (int(px[idx,0]),int(px[idx,1])), (255,255,255, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
+			 (int(px[idx,0]+10*tv[idx,0]),int(px[idx,1]+10*tv[idx,1])), (255,0,0, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
+			 (int(px[idx,0]+10*fv[idx,0]),int(px[idx,1]+10*fv[idx,1])), (0,255,0, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
+			 (int(px[idx,0]+10*mv[idx,0]),int(px[idx,1]+10*mv[idx,1])), (0,0,255, 255), thickness = 2)
+
+		fn = './' + imageoutput + '_forces_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
+		cv2.imwrite(fn, overlay)
+
 	def compute(self, y_im, y_flow, y_m, maskflow = True, imageoutput = None):
 		self.state.renderer.update_frame(y_im, y_flow, y_m)
 		#Mask optic flow frame by contour of y_im
@@ -217,8 +245,9 @@ class KalmanFilter:
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
-			self.state.renderer.screenshot(saveall=True, basename = imageoutput)
-		#Compute error between predicted image and actual frames
+			overlay = self.state.renderer.screenshot(saveall=True, basename = imageoutput)
+			#Compute error between predicted image and actual frames
+			self.plotforces(overlay, imageoutput)
 		return self.error(y_im, y_flow, y_m)
 
 	def predict(self):
@@ -227,12 +256,14 @@ class KalmanFilter:
 		#rpdb2.start_embedded_debugger("asdf")
 
 		X = self.state.X 
+		self.orig_x = X.copy()
 		F = self.state.F 
 		Weps = self.state.Weps
 		W = self.state.W 
 
 		#Prediction equations 
 		self.state.X = np.dot(F,X)
+		self.pred_x = self.state.X.copy()
 		self.state.W = np.dot(F, np.dot(W,F.T)) + Weps 
 		#print np.sum(self.state.velocities())
 
@@ -247,11 +278,16 @@ class KalmanFilter:
 		X = self.state.X
 		W = self.state.W
 		#eps_Z = self.state.eps_Z
-		(Hz, HTH) = self.state.update(y_im, y_flow, y_m)
+		(Hz, HTH, Hz_components) = self.state.update(y_im, y_flow, y_m)
 		invW = np.linalg.inv(W) + HTH
 		W = np.linalg.inv(invW)
 		self.state.X = X + np.dot(W,Hz)
 		self.state.W = W 
+
+		#Determine updates per component for diagnostics 
+		self.tv = np.dot(W, np.squeeze(Hz_components[:,0]))
+		self.fv = np.dot(W, np.squeeze(Hz_components[:,1]+Hz_components[:,2]))
+		self.mv = np.dot(W, np.squeeze(Hz_components[:,3]))
 
 	def error(self, y_im, y_flow, y_m):
 		#Compute error of current state and current images and flow data
@@ -283,7 +319,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		for i in range(self.nI):
 			sys.stdout.write('   IEKF K = %d\n'%i)
 			sys.stdout.flush()
-			(Hz, HTH) = self.state.update(y_im, y_flow, y_m)
+			(Hz, HTH, Hz_components) = self.state.update(y_im, y_flow, y_m)
 			invW = invW_orig + HTH
 			W = np.linalg.inv(invW)
 			X = X_orig + np.dot(W,Hz) - np.dot(W,np.dot(HTH,X_orig - X))

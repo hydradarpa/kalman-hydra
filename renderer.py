@@ -346,6 +346,7 @@ class Renderer(app.Canvas):
 			fn = './' + basename + '_' + self.state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 			print 'Saving screenshot to ' + fn
 			cv2.imwrite(fn, pixels)
+			return None
 		else:
 			oldstate = self.state
 			#change render mode, rerender, and save
@@ -356,11 +357,14 @@ class Renderer(app.Canvas):
 				self.draw(None)
 				pixels = gloo.read_pixels()
 				pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
+				if state == 'overlay':
+					overlay = pixels
 				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 				#print 'Saving screenshot to ' + fn
 				cv2.imwrite(fn, pixels)
 			self.state = oldstate
 			self.update()
+			return overlay
 
 	def getpredimg(self):
 		oldstate = self.state

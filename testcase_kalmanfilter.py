@@ -35,8 +35,8 @@ nx = 680
 start = nx//3
 end = 2*nx//3
 
-#kf = KalmanFilter(distmesh, frame, flowframe, cuda)
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
+kf = KalmanFilter(distmesh, frame, flowframe, cuda)
+#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
 #kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, sparse = False)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 
@@ -60,9 +60,9 @@ for i in range(5):
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
 
-	#(Hz, HTH) = kf.state.update(frame, flowframe)
+	#(Hz, HTH, Hz_components) = kf.state.update(frame, flowframe, mask)
 
-	#(e_im, e_fx, e_fy, fx, fy) = kf.compute(frame, flowframe, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
+	#(e_im, e_fx, e_fy, e_m, fx, fy) = kf.compute(frame, flowframe, mask, imageoutput = 'screenshots/' + name + '_frame_' + str(i))
 
 	#z_gpu = cuda.initjacobian(frame, flowframe, test = True)
 	#z_cpu = cuda.initjacobian_CPU(frame, flowframe, test = True)
@@ -91,7 +91,7 @@ for i in range(5):
 	#		j_cpu = cuda.j_CPU(state, deltaX, i, j)
 	#		print i, j, 'CPU:', j_cpu, 'GPU:', j_gpu, '% diff:', 100*abs(j_gpu-j_cpu)/(j_cpu+eps)
 
-	(e_im, e_fx, e_fy, e_m, fx, fy) = kf.compute(frame, flowframe, mask)
+	(e_im, e_fx, e_fy, e_m, fx, fy) = kf.compute(frame, flowframe, mask, imageoutput = './test_forces')
 	print 'Error image:', e_im
 	print 'Error flow x:', e_fx
 	print 'Error flow y:', e_fy
