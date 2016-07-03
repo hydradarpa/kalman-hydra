@@ -204,6 +204,7 @@ class KalmanFilter:
 		self.updatetime = 0
 
 	def plotforces(self, overlay, imageoutput):
+		sc = 2
 		#Get original pt locations
 		ox = self.orig_x[0:(2*self.N)].reshape((-1,2))
 		#Get prediction location
@@ -212,17 +213,31 @@ class KalmanFilter:
 		tv = self.tv[0:(2*self.N)].reshape((-1,2))
 		fv = self.fv[0:(2*self.N)].reshape((-1,2))
 		mv = self.mv[0:(2*self.N)].reshape((-1,2))
-
+		blank = np.zeros(overlay.shape, dtype=np.uint8)
+		blank[:,:,3] = 255
+		overlay = cv2.addWeighted(overlay, 0.5, blank, 0.5, 0)
+		#Resize image
+		overlay = cv2.resize(overlay, (0,0), fx = sc, fy = sc)
 		for idx in range(self.N):
-			cv2.arrowedLine(overlay, (int(ox[idx,0]),int(ox[idx,1])),\
-			 (int(px[idx,0]),int(px[idx,1])), (255,255,255, 255), thickness = 2)
-			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
-			 (int(px[idx,0]+10*tv[idx,0]),int(px[idx,1]+10*tv[idx,1])), (255,0,0, 255), thickness = 2)
-			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
-			 (int(px[idx,0]+10*fv[idx,0]),int(px[idx,1]+10*fv[idx,1])), (0,255,0, 255), thickness = 2)
-			cv2.arrowedLine(overlay, (int(px[idx,0]),int(px[idx,1])),\
-			 (int(px[idx,0]+10*mv[idx,0]),int(px[idx,1]+10*mv[idx,1])), (0,0,255, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (sc*int(ox[idx,0]),sc*int(ox[idx,1])),\
+			 (sc*int(px[idx,0]),sc*int(px[idx,1])), (255,255,255, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (sc*int(px[idx,0]),sc*int(px[idx,1])),\
+			 (sc*int(px[idx,0]+10*tv[idx,0]),sc*int(px[idx,1]+10*tv[idx,1])), (255,0,0, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (sc*int(px[idx,0]),sc*int(px[idx,1])),\
+			 (sc*int(px[idx,0]+10*fv[idx,0]),sc*int(px[idx,1]+10*fv[idx,1])), (0,255,0, 255), thickness = 2)
+			cv2.arrowedLine(overlay, (sc*int(px[idx,0]),sc*int(px[idx,1])),\
+			 (sc*int(px[idx,0]+10*mv[idx,0]),sc*int(px[idx,1]+10*mv[idx,1])), (0,0,255, 255), thickness = 2)
 
+		font = cv2.FONT_HERSHEY_SIMPLEX
+		#cv2.putText(img,'Hello World!',(10,500), font, 1,(255,255,255),2)
+		legendtext = 'red = mask force\ngreen = flow force\nblue = template force\nwhite = prediction'
+		x0, y0 = (20,20)
+		dy = 20
+		for i, line in enumerate(legendtext.split('\n')):
+			y = y0 + i*dy
+			cv2.putText(overlay, line, (x0, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255,255))
+		
+		#cv2.putText(overlay, legendtext, (20, 20), font, 1, (255, 255, 255), 2)
 		fn = './' + imageoutput + '_forces_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
 		cv2.imwrite(fn, overlay)
 
