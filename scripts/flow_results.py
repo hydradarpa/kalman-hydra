@@ -6,6 +6,8 @@ import os.path
 import sys
 import numpy as np
 
+import numpy.random as rd 
+
 import seaborn as sns
 import pandas as pd 
 
@@ -86,17 +88,21 @@ for i,warp in enumerate(warps):
 #fn_out = img_out + '.csv'
 #np.savetxt(fn_out, rms_mat)
 
+nS = 50000
+
 #Combine flow errs 
 flowerrs_comb = {}
 for i,warp in enumerate(warps):
 	for j,geom in enumerate(geoms):
-		if geom != 'square4_gradient_texture_rot1':
+		if not flowerrs[warp][geom].isnull().values.any():
 			print 'adding', geom
 			if warp not in flowerrs_comb:
 				flowerrs_comb[warp] = flowerrs[warp][geom]
 			else:
 				flowerrs_comb[warp] = pd.concat([flowerrs_comb[warp], flowerrs[warp][geom]])
-	df = flowerrs_comb[warp]
+	nT = len(flowerrs_comb[warp])
+	samp = rd.random_integers(0,nT-1,nS)
+	df = flowerrs_comb[warp].iloc[samp]
 	g1 = sns.jointplot("video_sample", "abs_res_sample", data = df, kind="kde", color="b")
 	g1.savefig(img_out + '_' + warp + '_intensity_abs_res.eps')
 	g2 = sns.jointplot("abs_flow_sample", "abs_res_sample", data = df, kind="kde", color="b")
