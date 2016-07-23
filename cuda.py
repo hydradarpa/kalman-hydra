@@ -812,7 +812,9 @@ class CUDAGL:
 		sum_fy_gpu = np.sum(partialsum_fy[0:np.ceil(nBlocks/2.)])
 		sum_m_gpu = np.sum(partialsum_m[0:np.ceil(nBlocks/2.)])
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
-		return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
+		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
+		jzc = np.array([sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu])
+		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
 	def j(self, state, deltaX, i, j):
 
@@ -1011,7 +1013,8 @@ class CUDAGL:
 		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)/self.eps_J
 		hzm = np.multiply((yp_m_tilde.astype(float)/255-self.y_m_tilde), self.zm)/self.eps_M
 		#print 'CPU', np.sum(hz), np.sum(hzx), np.sum(hzy)
-		return np.sum(hz) + np.sum(hzx) + np.sum(hzy) + np.sum(hzm)
+		jzc = np.array([np.sum(hz), np.sum(hzx), np.sum(hzy), np.sum(hzm)])
+		return (np.sum(hz) + np.sum(hzx) + np.sum(hzy) + np.sum(hzm), jzc)
 
 	def j_CPU(self, state, deltaX, i, j):
 		state.X[i,0] += deltaX
