@@ -3,7 +3,8 @@ import sys
 from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
 from synth import test_data, test_data_texture, test_data_image
-from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph
+from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph,\
+		MSKalmanFilter, IteratedMSKalmanFilter
 from renderer import VideoStream
 
 import pdb 
@@ -14,7 +15,7 @@ import numpy as np
 #import matplotlib.image as mpimg
 import matplotlib.pyplot as plot 
 
-cuda = True
+cuda = False
 gridsize = 80
 threshold = 9
 name = 'test_data'
@@ -36,9 +37,12 @@ start = nx//3
 end = 2*nx//3
 
 #kf = KalmanFilter(distmesh, frame, flowframe, cuda)
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
+#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda)
 #kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, sparse = False)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
+
+kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda)
+#kf = MSKalmanFilter(distmesh, frame, flowframe, cuda)
 
 rend = kf.state.renderer
 cuda = kf.state.renderer.cudagl 
@@ -59,6 +63,9 @@ for i in range(5):
 	mask = (frame > 0).astype(np.uint8)
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
+
+	#kf._newton()
+	#J = kf._jacobian()
 
 	#(Hz, HTH, Hz_components) = kf.state.update(frame, flowframe, mask)
 

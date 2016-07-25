@@ -14,6 +14,7 @@ import pdb
 import sys
 from time import gmtime, strftime
 from timeit import timeit 
+from numpy.linalg import norm, inv 
 
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
@@ -88,11 +89,26 @@ class KFState:
 			Jv[t[2],t[0]] = 1
 			Jv[t[2],t[1]] = 1
 
+		self.Jv = Jv 
+
 		#Can actually save more space by not computing the vx and vy cross perturbations
 		#as these will also be orthogonal. But that shouldn't have too big an impact really...
 		e = np.ones((2,2))
 		J = np.kron(Jv, e)
 		self.J = np.kron(e,J)
+		self.I = distmesh.L.shape[0]
+
+		#Compute incidence matrix from connectivity matrix
+		self.Kp = np.zeros((self.N, self.I))
+		for idx,[i1,i2] in enumerate(distmesh.bars):
+			#An edge exists, add these pairs
+			self.Kp[i1,idx] = 1
+			self.Kp[i2,idx] = -1
+		self.K = np.kron(self.Kp, np.eye(2))
+
+		#Compute initial edge lengths...
+		self.l0 = self.lengths()
+		self.L = distmesh.L 
 
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
@@ -193,6 +209,15 @@ class KFState:
 
 	def velocities(self):
 		return self.X[(2*self.N):].reshape((-1,2))
+
+	def lengths(self):
+		#Compute initial edge lengths...
+		l = np.zeros((self.I,1))
+		d = np.dot(self.K.T,self.vertices().reshape((-1,1)))
+		for i in range(self.I):
+			di = d[2*i:2*i+2,0]
+			l[i,0] = np.sqrt(np.dot(di.T,di))
+		return l
 
 class KalmanFilter:
 	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
@@ -356,9 +381,150 @@ class IteratedKalmanFilter(KalmanFilter):
 		self.fv = np.dot(W, np.squeeze(Hz_components[:,1]+Hz_components[:,2]))
 		self.mv = np.dot(W, np.squeeze(Hz_components[:,3]))
 
-			
 		if conv is False:
 			print 'Reached max iterations.'
+
+#Iterated mass-spring Kalman filter
+class IteratedMSKalmanFilter(IteratedKalmanFilter):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		#Mass of vertices
+		self.M = 1
+		#Spring stiffness
+		self.kappa = 1e-3
+		self.deltat = 1
+		self.maxiter = 100
+		self.tol = 1e-4
+
+	def predict(self):
+		print '-- predicting'
+		X = self.state.X 
+		self.orig_x = X.copy()
+
+		#Generate linearized Jacobian F to update self.state.W
+		F = self._dfdx()
+		Weps = self.state.Weps
+		W = self.state.W 
+
+		#Use Newton's method to solve for new state self.state.X
+		self._newton()
+		self.pred_x = self.state.X.copy()
+		self.state.W = np.dot(F, np.dot(W, F.T)) + Weps 
+
+	def _jacobian(self):
+		#Here we compute the Jacobian from linearizing around the current
+		#state estimate. Note that this is slightly different from the Jacobian
+		#evaluated at the future state, which is how the dynamics are specified
+		#i.e. implicitly: x_k = x_k-1 + f(x_k)
+		#However the form of the dynamics in the Kalman filter are given in an
+		#explicit form, so this is simpler. I'll try it and see if it makes a 
+		#large difference.
+
+		#We're computing:
+		#dfdy = -K[diag_i \kappa_i (1-l_i0/|d_i|)\otimes I_2] K^T
+		# 	    -K diag(d)[da_i \kappa_i l_i0 /{|d_i|^3} y^T [(K^T)_i]^T (K^T)_i \otimes 1_{2x1}]
+
+		n = self.state.N
+		I = self.state.I 
+		kappa = self.kappa 
+		l0 = self.state.l0 
+		K = self.state.K 
+		y = self.state.vertices().reshape((-1,1))
+
+		d = np.dot(K.T,y)
+		l = self.state.lengths()
+		e = np.eye(2*n)
+		e2 = np.eye(2)
+		o = np.ones((2,1))
+		dfdy = np.zeros((2*n,2*n))
+
+		k = np.diag(np.array([kappa*(1-l0[i,0]/l[i,0]) for i in range(I)]))
+		k = np.kron(k, e2)
+
+		dk = np.zeros((I, 2*n))
+		for i in range(I):
+			KTi = K.T[2*i:2*i+2,:]
+			dk[i,:] = kappa*l0[i,0]/np.power(l[i,0],3)*np.dot(y.T,np.dot(KTi.T, KTi))
+		dk = np.kron(dk, o)
+
+		dfdy = -np.dot(K, np.dot(k, K.T)) - np.dot(K, np.dot(np.diagflat(d), dk))
+		return dfdy 
+
+	def _dfdx(self):
+		n = self.state.N
+		M = self.M 
+		deltat = self.deltat
+		e = np.eye(2*n)
+		dfdy = self._jacobian()
+		F = np.bmat([[e, deltat*e], [deltat*dfdy/M, e]])
+		return F 
+
+	def _dgdx(self):
+		n = self.state.N
+		M = self.M 
+		deltat = self.deltat
+		e = np.eye(2*n)
+		dfdy = self._jacobian()
+		G = np.bmat([[e, -deltat*e], [-deltat*dfdy/M, e]])
+		return G 
+
+	def _newton(self):
+		#For small meshes we can invert the Jacobian directly...
+		deltat = self.deltat 
+		M = self.M 
+		kappa = self.kappa 
+		I = self.state.I 
+		maxiter = self.maxiter 
+		tol = self.tol 
+		K = self.state.K 
+		l0 = self.state.l0 
+		e2 = np.eye(2)
+
+		x = self.state.X.copy()
+		xo = np.zeros(x.shape)
+		xp = x.copy()
+		print '   using Newton''s method'
+		n = 0 
+		while n < maxiter and norm(xo-xp)>tol*norm(xp):
+			xo = xp.copy()
+			v = self.state.velocities().reshape((-1,1))
+			y = self.state.vertices().reshape((-1,1))
+			d = np.dot(K.T,y)
+			l = self.state.lengths()
+			k = np.diag(np.array([kappa*(1-l0[i,0]/l[i,0]) for i in range(I)]))
+			k = np.kron(k, e2)
+			L = np.dot(k,d)
+			f = np.dot(K,L)
+			dv = f/M 
+			dg = np.bmat([[v],[dv]])
+			g = xp - x - deltat*dg 
+			dgdx = self._dgdx()
+			xp = xp - inv(dgdx)*g 
+			self.state.X = xp
+			print '      iteration:', n, 'relative change:', norm(xo-xp)/norm(xp)
+			n += 1
+
+#Mass-spring Kalman filter
+class MSKalmanFilter(KalmanFilter):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		#Mass of vertices
+		self.M = 1
+		#Spring stiffness
+		self.kappa = 1
+
+	def predict(self):
+		print '-- predicting'
+		X = self.state.X 
+		self.orig_x = X.copy()
+		F = self.state.F 
+		Weps = self.state.Weps
+		W = self.state.W 
+
+		#Prediction equations 
+		self.state.X = np.dot(F,X)
+		self.pred_x = self.state.X.copy()
+		self.state.W = np.dot(F, np.dot(W,F.T)) + Weps 
 
 class KFStateMorph(KFState):
 	def __init__(self, distmesh, im, flow, cuda, eps_Q = 1, eps_R = 1e-3):
