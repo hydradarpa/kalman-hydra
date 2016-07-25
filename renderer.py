@@ -181,19 +181,8 @@ void main() {
 def frag_shader_lines(I):
 	FRAG_SHADER_LINES = """
 	#version 330
-	//varying vec4 v_color;
-	//uniform vec4[] u_colors;
-
-	//void main()
-	//{
-		//gl_FragColor = v_color;
-	//	gl_FragColor = u_colors[gl_PrimitiveID];
-	//}
-
-	in vec4[%d] u_colors;
-	in int gl_PrimitiveID;
+	uniform vec4 u_colors[%d];
 	out vec4 fragmentColor;
-
 	void main()
 	{
 		fragmentColor = u_colors[gl_PrimitiveID];
@@ -236,7 +225,8 @@ class Renderer(app.Canvas):
 		self._program.bind(self._vbo)
 		#self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
 		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
-		self._program_lines['u_color'] = 0, 1, 1, 1
+		#for i in range(self.I):
+		#	self._program_lines[u'u_colors[%d]'%i] = tuple(self.linecolors[i,:])
 		self._program_lines['u_colors'] = self.linecolors
 		self._program_lines.bind(self._vbo)
 		self._program_flowx = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWX)
@@ -435,32 +425,32 @@ class Renderer(app.Canvas):
 		self._program_mask.bind(self._vbo)
 
 		#Update color of bars if update based on force available
-		if force is not None:
+		if self.force is not None:
 			for idx, t in enumerate(self.tri):
 				#First edge
 				pt = vertices[t[0],:]-vertices[t[1],:]
-				self.l[3*idx,0] = np.lingalg.norm(pt)
+				self.l[3*idx,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx,0], self.l0[3*idx,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
 				self.linecolors[3*idx,:] = [0, c, 0, 1]
 				#Second edge
 				pt = vertices[t[1],:]-vertices[t[2],:]
-				self.l[3*idx+1,0] = np.lingalg.norm(pt)
+				self.l[3*idx+1,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+1,0], self.l0[3*idx+1,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
 				self.linecolors[3*idx+1,:] = [0, c, 0, 1]
 				#Third edge
 				pt = vertices[t[2],:]-vertices[t[0],:]
-				self.l[3*idx+2,0] = np.lingalg.norm(pt)
+				self.l[3*idx+2,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+2,0], self.l0[3*idx+2,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
 				self.linecolors[3*idx+2,:] = [0, c, 0, 1]
 	
 			#Update uniform data
-			self._program_lines['colors'] = self.linecolors 
+			self._program_lines['u_colors'] = self.linecolors 
 
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx):
@@ -504,7 +494,9 @@ class Renderer(app.Canvas):
 			pt = vertices[t[2],:]-vertices[t[0],:]
 			l0[3*idx+2,0] = np.linalg.norm(pt)
 
-		self.linecolors = np.ones((3*len(triangles),4))		
+		self.linecolors = np.zeros((3*len(triangles),4))		
+		self.linecolors[:,1] = 0.5
+		self.linecolors[:,3] = 1.0
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
 

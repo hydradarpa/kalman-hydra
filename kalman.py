@@ -219,6 +219,9 @@ class KFState:
 			l[i,0] = np.sqrt(np.dot(di.T,di))
 		return l
 
+	def setforce(self,f):
+		self.renderer.force = f 
+
 class KalmanFilter:
 	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
 		self.distmesh = distmesh
@@ -395,6 +398,9 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		self.deltat = 1
 		self.maxiter = 100
 		self.tol = 1e-4
+		#Force equation
+		self.force = lambda l1, l2: -self.kappa*(l1-l2)
+		self.state.setforce(self.force)
 
 	def predict(self):
 		print '-- predicting'
