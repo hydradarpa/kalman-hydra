@@ -178,26 +178,47 @@ void main() {
 }
 """
 
-FRAG_SHADER_LINES = """ // simple fragment shader
-varying vec4 v_color;
+def frag_shader_lines(I):
+	FRAG_SHADER_LINES = """
+	#version 330
+	//varying vec4 v_color;
+	//uniform vec4[] u_colors;
 
-void main()
-{
-	gl_FragColor = v_color;
-}
-"""
+	//void main()
+	//{
+		//gl_FragColor = v_color;
+	//	gl_FragColor = u_colors[gl_PrimitiveID];
+	//}
+
+	in vec4[%d] u_colors;
+	in int gl_PrimitiveID;
+	out vec4 fragmentColor;
+
+	void main()
+	{
+		fragmentColor = u_colors[gl_PrimitiveID];
+	}
+	""" % I
+	return FRAG_SHADER_LINES
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, showtracking = False):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, showtracking = False, force = None):
 
 		self.cuda = cuda
 		self.showtracking = showtracking 
+		self.force = force
+		self.fmin = -10
+		self.fmax = 10
 		self.state = 'texture'
+		self.tri = distmesh.t 
+		self.I = 3*len(self.tri)
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		size = (nx, nx)
 		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
-		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
+		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
+		self.l = self.l0.copy()
+
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
 		self._quad = gloo.VertexBuffer(self.quad_data)
 		self.current_frame = im1
@@ -213,8 +234,10 @@ class Renderer(app.Canvas):
 		self._program = gloo.Program(VERT_SHADER, FRAG_SHADER)
 		self._program['texture1'] = self.init_texture
 		self._program.bind(self._vbo)
-		self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
+		#self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
+		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
 		self._program_lines['u_color'] = 0, 1, 1, 1
+		self._program_lines['u_colors'] = self.linecolors
 		self._program_lines.bind(self._vbo)
 		self._program_flowx = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWX)
 		self._program_flowx['u_color'] = 1, 0, 0, 1
@@ -411,6 +434,34 @@ class Renderer(app.Canvas):
 		self._program_flow.bind(self._vbo)
 		self._program_mask.bind(self._vbo)
 
+		#Update color of bars if update based on force available
+		if force is not None:
+			for idx, t in enumerate(self.tri):
+				#First edge
+				pt = vertices[t[0],:]-vertices[t[1],:]
+				self.l[3*idx,0] = np.lingalg.norm(pt)
+				f = self.force(self.l[3*idx,0], self.l0[3*idx,0])
+				c = (f-self.fmin)/(self.fmax-self.fmin)
+				c = min(max(c, 0), 1)
+				self.linecolors[3*idx,:] = [0, c, 0, 1]
+				#Second edge
+				pt = vertices[t[1],:]-vertices[t[2],:]
+				self.l[3*idx+1,0] = np.lingalg.norm(pt)
+				f = self.force(self.l[3*idx+1,0], self.l0[3*idx+1,0])
+				c = (f-self.fmin)/(self.fmax-self.fmin)
+				c = min(max(c, 0), 1)
+				self.linecolors[3*idx+1,:] = [0, c, 0, 1]
+				#Third edge
+				pt = vertices[t[2],:]-vertices[t[0],:]
+				self.l[3*idx+2,0] = np.lingalg.norm(pt)
+				f = self.force(self.l[3*idx+2,0], self.l0[3*idx+2,0])
+				c = (f-self.fmin)/(self.fmax-self.fmin)
+				c = min(max(c, 0), 1)
+				self.linecolors[3*idx+2,:] = [0, c, 0, 1]
+	
+			#Update uniform data
+			self._program_lines['colors'] = self.linecolors 
+
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx):
 		# Create vetices and texture coords, combined in one array for high performance
@@ -436,13 +487,24 @@ class Renderer(app.Canvas):
 		indices = triangles.reshape((1,-1)).astype(np.uint16)
 		indices_buffer = gloo.IndexBuffer(indices)
 	
+		l0 = np.zeros((3*len(triangles),1))
 		for idx, t in enumerate(triangles):
 			outlinedata[idx,0] = t[0]
 			outlinedata[idx,1] = t[1]
+			pt = vertices[t[0],:]-vertices[t[1],:]
+			l0[3*idx,0] = np.linalg.norm(pt)
+
 			outlinedata[idx,2] = t[1]
 			outlinedata[idx,3] = t[2]
+			pt = vertices[t[1],:]-vertices[t[2],:]
+			l0[3*idx+1,0] = np.linalg.norm(pt)
+			
 			outlinedata[idx,4] = t[2]
 			outlinedata[idx,5] = t[0]
+			pt = vertices[t[2],:]-vertices[t[0],:]
+			l0[3*idx+2,0] = np.linalg.norm(pt)
+
+		self.linecolors = np.ones((3*len(triangles),4))		
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
 
@@ -460,7 +522,7 @@ class Renderer(app.Canvas):
 		quad_indices = quad_triangles.reshape((1,-1)).astype(np.uint16)
 		quad_buffer = gloo.IndexBuffer(quad_indices)
 
-		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer
+		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer, l0
 
 	def update_frame(self, y_im, y_flow, y_m):
 		self.current_frame = y_im 
