@@ -63,4 +63,4 @@ for i in range(500):
 	kf.state.refresh()
 	kf.state.render()
 	#Wait for user input:
-	raw_input("Press enter to continue")
+	raw_input("Press enter to continue, ctrl-d to quit")

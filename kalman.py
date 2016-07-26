@@ -394,9 +394,9 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
-		self.kappa = -5e-2
-		self.deltat = 1
-		self.maxiter = 100
+		self.kappa = -1
+		self.deltat = 0.1
+		self.maxiter = 1000
 		self.tol = 1e-4
 		#Force equation
 		self.force = lambda l1, l2: -self.kappa*(l1-l2)
@@ -486,29 +486,32 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		l0 = self.state.l0 
 		e2 = np.eye(2)
 
-		x = self.state.X.copy()
-		xo = np.zeros(x.shape)
-		xp = x.copy()
-		print '   using Newton''s method'
-		n = 0 
-		while n < maxiter and norm(xo-xp)>tol*norm(xp):
-			xo = xp.copy()
-			v = self.state.velocities().reshape((-1,1))
-			y = self.state.vertices().reshape((-1,1))
-			d = np.dot(K.T,y)
-			l = self.state.lengths()
-			k = np.diag(np.array([kappa*(1-l0[i,0]/l[i,0]) for i in range(I)]))
-			k = np.kron(k, e2)
-			L = np.dot(k,d)
-			f = np.dot(K,L)
-			dv = f/M 
-			dg = np.bmat([[v],[dv]])
-			g = xp - x - deltat*dg 
-			dgdx = self._dgdx()
-			xp = xp - inv(dgdx)*g 
-			self.state.X = xp
-			print '      iteration:', n, 'relative change:', norm(xo-xp)/norm(xp)
-			n += 1
+		print "   using Newton's method"
+		N = int(np.ceil(1/deltat))
+		for i in range(N):
+			print 't = ', deltat*i 
+			n = 0
+			x = self.state.X.copy()
+			xp = x.copy()
+			xo = np.zeros(x.shape)
+			while n < maxiter and norm(xo-xp)>tol*norm(xp):
+				xo = xp.copy()
+				v = self.state.velocities().reshape((-1,1))
+				y = self.state.vertices().reshape((-1,1))
+				d = np.dot(K.T,y)
+				l = self.state.lengths()
+				k = np.diag(np.array([kappa*(1-l0[i,0]/l[i,0]) for i in range(I)]))
+				k = np.kron(k, e2)
+				L = np.dot(k,d)
+				f = np.dot(K,L)
+				dv = f/M 
+				dg = np.bmat([[v],[dv]])
+				g = xp - x - deltat*dg 
+				dgdx = self._dgdx()
+				xp = xp - inv(dgdx)*g 
+				self.state.X = xp
+				print '      iteration:', n, 'relative change:', norm(xo-xp)/norm(xp)
+				n += 1
 
 #Mass-spring Kalman filter
 class MSKalmanFilter(KalmanFilter):
