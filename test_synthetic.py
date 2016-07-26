@@ -1,4 +1,4 @@
-from kalman import KalmanFilter, IteratedKalmanFilter
+from kalman import KalmanFilter, IteratedKalmanFilter, IteratedMSKalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 import os.path 
@@ -10,12 +10,13 @@ from matplotlib import pyplot as plt
 #def test_synthetic(name = 'square2_gradient' ,ff = 'translate_leftup' ,notes = \
 #	'masked_iekf', cuda = True ,sparse = True):
 
-name = 'square3_gradient_texture'
+name = 'hydra1'
+#name = 'square3_gradient_texture'
 #name = 'square2_gradient'
 #name = 'square1'
 #ff = 'translate_leftup_stretch'
 ff = 'translate_leftup'
-notes = 'masked_iekf'
+notes = 'masked_iekf_springs'
 cuda = True
 sparse = True
 
@@ -59,7 +60,8 @@ rms_pos = np.zeros(nF)
 
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
+kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
+#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 
 count = 0
 print 'Tracking with Kalman filter'
@@ -72,8 +74,8 @@ while(capture.isOpened()):
 		break
 
 	print 'Frame %d' % count 
-	#kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
-	kf.compute(grayframe, flowframe, mask)
+	kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	#kf.compute(grayframe, flowframe, mask)
 
 	predstates[count,:] = np.squeeze(kf.state.X)
 	r_pos = truestates[count,0:(2*nX)]-predstates[count,0:(2*nX)]
