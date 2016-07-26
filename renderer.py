@@ -197,8 +197,8 @@ class Renderer(app.Canvas):
 		self.cuda = cuda
 		self.showtracking = showtracking 
 		self.force = force
-		self.fmin = -10
-		self.fmax = 10
+		self.fmin = -.5
+		self.fmax = .5
 		self.state = 'texture'
 		self.tri = distmesh.t 
 		self.I = 3*len(self.tri)
@@ -433,21 +433,21 @@ class Renderer(app.Canvas):
 				f = self.force(self.l[3*idx,0], self.l0[3*idx,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
-				self.linecolors[3*idx,:] = [0, c, 0, 1]
+				self.linecolors[3*idx,:] = [0, 0, c, 1]
 				#Second edge
 				pt = vertices[t[1],:]-vertices[t[2],:]
 				self.l[3*idx+1,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+1,0], self.l0[3*idx+1,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+1,:] = [0, c, 0, 1]
+				self.linecolors[3*idx+1,:] = [0, 0, c, 1]
 				#Third edge
 				pt = vertices[t[2],:]-vertices[t[0],:]
 				self.l[3*idx+2,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+2,0], self.l0[3*idx+2,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+2,:] = [0, c, 0, 1]
+				self.linecolors[3*idx+2,:] = [0, 0, c, 1]
 	
 			#Update uniform data
 			self._program_lines['u_colors'] = self.linecolors 
@@ -495,7 +495,7 @@ class Renderer(app.Canvas):
 			l0[3*idx+2,0] = np.linalg.norm(pt)
 
 		self.linecolors = np.zeros((3*len(triangles),4))		
-		self.linecolors[:,1] = 0.5
+		self.linecolors[:,2] = 0.5
 		self.linecolors[:,3] = 1.0
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)

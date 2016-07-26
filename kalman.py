@@ -394,7 +394,7 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
-		self.kappa = 1e-3
+		self.kappa = 1e-1
 		self.deltat = 1
 		self.maxiter = 100
 		self.tol = 1e-4
