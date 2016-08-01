@@ -51,6 +51,8 @@ state = kf.state
 nx = nx 
 deltaX = -2
 
+#Test creation of multi-perturbations
+
 nF = video.shape[2]
 nI = 10
 count = 0

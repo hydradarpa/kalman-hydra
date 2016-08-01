@@ -95,10 +95,11 @@ class KFState:
 		#as these will also be orthogonal. But that shouldn't have too big an impact really...
 		e = np.ones((2,2))
 		J = np.kron(Jv, e)
+		#print J 
 		self.J = np.kron(e,J)
 		self.I = distmesh.L.shape[0]
 
-		#Compute incidence matrix from connectivity matrix
+		#Compute incidence matrix
 		self.Kp = np.zeros((self.N, self.I))
 		for idx,[i1,i2] in enumerate(distmesh.bars):
 			#An edge exists, add these pairs
@@ -109,6 +110,61 @@ class KFState:
 		#Compute initial edge lengths...
 		self.l0 = self.lengths()
 		self.L = distmesh.L 
+
+		#Compute partitions for multiperturbation rendering
+		self.E = []
+		self.labels = []
+		Q = np.arange(self.N)
+		A = np.arange(self.N)
+		while len(Q) > 0:
+			#print 'Outer loop'
+			P = np.array([])
+			e = []
+			while len(Q) > 0:
+				#print '  * Inner loop'
+				#Current vertex
+				q = Q[0]
+				#print '  * q = ', q
+				#Things connected to current vertex
+				p = np.nonzero(Jv[q,:])[0]
+				p = np.setdiff1d(p, q)
+				#print '  * p = ', p
+				#Add current vertex
+				e += [q]
+				#Add things connected to current vertex to the 'do later' list
+				P = np.intersect1d(np.union1d(P, p), A)
+				#print '  * P = ', P
+				A = np.setdiff1d(A, q)
+				#Remove q and p from Q
+				Q = np.setdiff1d(Q, p)
+				Q = np.setdiff1d(Q, q)
+			Q = P
+			#if type(e).__module__ == np.__name__:
+			#	ee = e.tolist()
+			#else:
+			#	ee = e
+			#self.E += [ee]
+			self.E += [e]
+
+		#print self.E 
+
+		#For each element of the partitions we label the triangles and assign them colors
+		#for the mask 
+		#We check there're no conflicts in the labels
+
+		#Horribly inefficient... 
+		self.labels = -1*np.ones((len(self.tri), len(self.E)))
+		for k,e in enumerate(self.E):
+			label = -1*np.ones(len(self.tri))
+			#For each triangle, find it any of its vertices are mentioned in e,
+			#give it a color...
+			for i, node in enumerate(e):
+				for j, t in enumerate(self.tri):
+					if node in t:
+						label[j] = node
+			self.labels[:,k] = label
+
+		#print self.labels 
 
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
