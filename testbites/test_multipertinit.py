@@ -5,6 +5,8 @@ import os.path
 import cv2
 import numpy as np 
 
+from vispy import gloo 
+
 from matplotlib import pyplot as plt
 
 name = 'hydra1'
@@ -55,3 +57,13 @@ flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
 
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
+self = kf.state.renderer
+
+with self._fbo4:
+	m = gloo.read_pixels()
+np.max(m[:,:,2])
+np.sum(m[:,:,2] == 255)
+np.unique(m[:,:,2])
+kf.state.E[0]
+kf.state.labels
+np.unique(m[:,:,1])
