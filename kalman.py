@@ -167,7 +167,7 @@ class KFState:
 		#print self.labels 
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, self.labels, showtracking = True)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
