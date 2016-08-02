@@ -253,8 +253,8 @@ class KFState:
 	def size(self):
 		return self.X.shape[0]
 
-	def refresh(self):
-		self.renderer.update_vertex_buffer(self.vertices(), self.velocities())
+	def refresh(self, multi_idx = -1):
+		self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx, self.labels)
 
 	@counter(stats.renders, [1])
 	def render(self):
@@ -263,7 +263,7 @@ class KFState:
 	#@timer_counter(stats.stateupdatecount, stats.stateupdatetime)
 	@timer_counter(stats.stateupdatetc, [1])
 	def update(self, y_im, y_flow, y_m):
-		(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
+		(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
 		if self.sparse:
 			HTH = self._hessian_sparse(y_im, y_flow, y_m)
 		else: 
@@ -271,6 +271,43 @@ class KFState:
 		return (Hz, HTH, Hz_components)
 
 	@timer_counter(stats.jacobianrenderstc, stats.jacinc)
+	def _jacobian_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		Hz = np.zeros((self.size(),1))
+		Hz_components = np.zeros((self.size(),4))
+		self.refresh() 
+		self.render()
+		#Set reference image to unperturbed images
+		self.renderer.initjacobian(y_im, y_flow, y_m)
+		#Perturb groups of vertices
+
+		#This loop is ~32 renders, instead of ~280, for hydra1 synthetic mesh of 35 nodes
+		for idx, e in enumerate(self.E):
+			for i in range(2):
+				for j in range(2):
+					offset = i+2*self.N*j 
+					ee = offset + e 
+					self.X[ee,0] += deltaX
+					self.refresh(idx)
+					self.render()
+					(hz, hzc) = self.renderer.jz(self)
+					Hz[ee,0] = hz/deltaX
+					Hz_components[ee,:] = hzc/deltaX
+		
+					self.X[ee,0] -= 2*deltaX
+					self.refresh(idx)
+					self.render()
+					(hz, hzc) = self.renderer.jz(self)
+					Hz[ee,0] -= hz/deltaX
+					Hz_components[ee,:] -= hzc/deltaX
+					self.X[ee,0] += deltaX
+		
+					Hz[ee,0] = Hz[ee,0]/2
+					Hz_components[ee,:] = Hz_components[ee,:]/2
+
+		self.refresh() 
+		self.render()
+		return (Hz, Hz_components)
+
 	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
