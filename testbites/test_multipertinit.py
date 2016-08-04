@@ -59,6 +59,7 @@ ret_flow, flowframe = flowstream.read()
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 self = kf.state.renderer
 
+#Test labels
 with self._fbo4:
 	m = gloo.read_pixels()
 np.max(m[:,:,2])
@@ -67,3 +68,35 @@ np.unique(m[:,:,2])
 kf.state.E[0]
 kf.state.labels
 np.unique(m[:,:,1])
+
+self = kf.state
+Hz = np.zeros((self.size(),1))
+Hz_components = np.zeros((self.size(),4))
+self.refresh() 
+self.render()
+self.renderer.initjacobian(frame, flowframe, mask)
+idx = 0
+e = np.array(self.E[0])
+i = 0
+j = 0
+
+offset = i+2*self.N*j 
+ee = offset + 2*e 
+deltaX = 2
+self.X[ee,0] += deltaX
+self.refresh(idx)
+self.render()
+(hz, hzc) = self.renderer.jz(self)
+Hz[ee,0] = hz/deltaX
+Hz_components[ee,:] = hzc/deltaX
+
+self.X[ee,0] -= 2*deltaX
+self.refresh(idx)
+self.render()
+(hz, hzc) = self.renderer.jz(self)
+Hz[ee,0] -= hz/deltaX
+Hz_components[ee,:] -= hzc/deltaX
+self.X[ee,0] += deltaX
+
+Hz[ee,0] = Hz[ee,0]/2
+Hz_components[ee,:] = Hz_components[ee,:]/2

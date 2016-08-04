@@ -206,6 +206,7 @@ class Renderer(app.Canvas):
 		self.tri = distmesh.t 
 		self.I = 3*len(self.tri)
 		self.F = len(self.tri)
+		self.n = distmesh.p.shape[0]
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		size = (nx, nx)
 		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
@@ -281,7 +282,7 @@ class Renderer(app.Canvas):
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
 		d=self.context.shared._parser.get_object(self._rendertex4.id)._handle
 		if multi:
-			self.cudagl = CUDAGL_multi(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
+			self.cudagl = CUDAGL_multi(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda, self.n)
 		else:
 			self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
 

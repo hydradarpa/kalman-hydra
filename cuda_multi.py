@@ -41,7 +41,8 @@ TEST_FLOWY = 3
 TEST_MASK = 4
 
 class CUDAGL_multi(CUDAGL):
-	def __init__(self, texture, texture_fx, texture_fy, texture_m, fbo, fbo_fx, fbo_fy, fbo_m, texid, tex_fx_id, tex_fy_id, tex_m_id, eps_Z, eps_J, eps_M, cuda):
+	def __init__(self, texture, texture_fx, texture_fy, texture_m, fbo, fbo_fx, fbo_fy, fbo_m, texid, tex_fx_id, tex_fy_id, tex_m_id, eps_Z, eps_J, eps_M, cuda, n):
+		self.n = n 
 		self.cuda = cuda 
 		self.eps_J = eps_J 
 		self.eps_Z = eps_Z
@@ -70,7 +71,8 @@ class CUDAGL_multi(CUDAGL):
 		
 			cuda_tpl = Template("""
 			extern "C" {
-			//Sum all elements of an input array of floats...
+
+			#include <stdio.h>
 
 			//Argument below:
 			//PPPPPPPPPPPPPPPPi
@@ -82,7 +84,7 @@ class CUDAGL_multi(CUDAGL):
 								int len) {
 
 				int stride = 4;
-				int m, mp, fp1, fp2, fp, f1, f2, f;
+				int m, mp, fp1, fp2, fp, f1, f2, f, face;
 
 			    float ps;
 			    float ps_fx;
@@ -123,7 +125,7 @@ class CUDAGL_multi(CUDAGL):
 					ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(y_im[col]-y_im_t[col]))/255.0/255.0/eps_Z;
 					ps_fx = (yp_fx_t[col]-y_fx_t[col])*(y_fx[col]-y_fx_t[col])/eps_J;
 					ps_fy = -(yp_fy_t[col]-y_fy_t[col])*(y_fy[col]+y_fy_t[col])/eps_J;
-					ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*colcol]))*((float)(y_m[col]-y_m_t[stride*col]))/255.0/255.0/eps_M;
+					ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(y_m[col]-y_m_t[stride*col]))/255.0/255.0/eps_M;
 
 			        //Face components from mask render
 			        mp = yp_m_t[stride*col] == 255;
@@ -137,9 +139,14 @@ class CUDAGL_multi(CUDAGL):
 			        f2 = y_m_t[stride*col+2];
 			        f = 256*f1+f2;
 
-			        face = m * f + (m! && mp) * fp;
+			        face = m * f + (!m && mp) * fp;
 
-			        if (m || mp) & (face < 256*256-1) {
+			        if ((m || mp) && (face < (256*256-1))) {
+				        if (face > {{ num_vertices }})
+							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+						if (face == 34) {
+							printf("Found face 34. ");
+						}
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
 						atomicAdd(&gmem_fy[face], ps_fy);
@@ -154,84 +161,81 @@ class CUDAGL_multi(CUDAGL):
 								float *output, float *output_fx, float *output_fy, float *output_m, 
 								int len) {
 
+				int stride = 4;
+				int m, mp, fp1, fp2, fp, f1, f2, f, face;
+
 			    float ps;
 			    float ps_fx;
 			    float ps_fy;
 			    float ps_m;
 
-			    int stride = 4;
-
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
 			    float eps_M = {{ eps_M }};
 
-				// pixel coordinates
-				int x = blockIdx.x * blockDim.x + threadIdx.x;		
-				// grid dimensions
-				int nx = blockDim.x * gridDim.x; 
-				// linear thread index within 2D block
-				int t = threadIdx.x; 
-				// total threads in 2D block
-				int nt = blockDim.x; 
-				// linear block index within 2D grid
-				int g = blockIdx.x;
-
-				// initialize temporary accumulation array in global memory
-				float *gmem = output + g * {{ num_vertices }};
-				float *gmem_fx = output_fx + g * {{ num_vertices }};
-				float *gmem_fy = output_fy + g * {{ num_vertices }};
-				float *gmem_m = output_m + g * {{ num_vertices }};
-
-				for (int i = t; i < {{ num_vertices }}; i += nt) {
-					gmem[i] = 0;
-					gmem_fx[i] = 0;
-					gmem_fy[i] = 0;
-					gmem_m[i] = 0;
-				}
-
-				// process pixels
-				// updates our block's partial histogram in global memory
-				for (int col = x; col < len; col += nx) {
-			        ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(ypp_im_t[col]-y_im_t[col]))/255.0/255.0/eps_Z;
-			        ps_fx = ((yp_fx_t[col]-y_fx_t[col])*scale)*((ypp_fx_t[col]-y_fx_t[col])*scale)/eps_J;
-			        ps_fy = ((yp_fy_t[col]-y_fy_t[col])*scale)*((ypp_fy_t[col]-y_fy_t[col])*scale)/eps_J;
-
-			        //Mask component
-			        ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(ypp_m_t[col*stride]-y_m_t[stride*col]))/255.0/255.0/eps_M;
-
-			        //Face components from mask render
-			        fp1 = yp_m_t[stride*col+1];
-			        fp2 = yp_m_t[stride*col+2];
-			        fp = 256*fp1+fp2;
-
-			        fpp1 = ypp_m_t[stride*col+1];
-			        fpp2 = ypp_m_t[stride*col+2];
-			        fpp = 256*fpp1+fpp2;
-
-			        f1 = y_m_t[stride*col+1];
-			        f2 = y_m_t[stride*col+2];
-			        f = 256*f1+f2;
-
-					//Find the right box for this pixel
-					IMPLEMENT!!
-					unsigned int r = -1;
-					r = (unsigned int)(256 * in[col]);
-					if (r >= 0) {
-						atomicAdd(&gmem[r], ps);
-						atomicAdd(&gmem_fx[r], ps_fx);
-						atomicAdd(&gmem_fy[r], ps_fy);
-						atomicAdd(&gmem_m[r], ps_m);
-					}
-				}
+			//	// pixel coordinates
+			//	int x = blockIdx.x * blockDim.x + threadIdx.x;		
+			//	// grid dimensions
+			//	int nx = blockDim.x * gridDim.x; 
+			//	// linear thread index within 2D block
+			//	int t = threadIdx.x; 
+			//	// total threads in 2D block
+			//	int nt = blockDim.x; 
+			//	// linear block index within 2D grid
+			//	int g = blockIdx.x;
+//
+			//	// initialize temporary accumulation array in global memory
+			//	float *gmem = output + g * {{ num_vertices }};
+			//	float *gmem_fx = output_fx + g * {{ num_vertices }};
+			//	float *gmem_fy = output_fy + g * {{ num_vertices }};
+			//	float *gmem_m = output_m + g * {{ num_vertices }};
+//
+			//	for (int i = t; i < {{ num_vertices }}; i += nt) {
+			//		gmem[i] = 0;
+			//		gmem_fx[i] = 0;
+			//		gmem_fy[i] = 0;
+			//		gmem_m[i] = 0;
+			//	}
+//
+			//	// process pixels
+			//	// updates our block's partial histogram in global memory
+			//	for (int col = x; col < len; col += nx) {
+			//        ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(ypp_im_t[col]-y_im_t[col]))/255.0/255.0/eps_Z;
+			//        ps_fx = ((yp_fx_t[col]-y_fx_t[col])*scale)*((ypp_fx_t[col]-y_fx_t[col])*scale)/eps_J;
+			//        ps_fy = ((yp_fy_t[col]-y_fy_t[col])*scale)*((ypp_fy_t[col]-y_fy_t[col])*scale)/eps_J;
+//
+			//        //Mask component
+			//        ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(ypp_m_t[col*stride]-y_m_t[stride*col]))/255.0/255.0/eps_M;
+//
+			//        //Face components from mask render
+			//        fp1 = yp_m_t[stride*col+1];
+			//        fp2 = yp_m_t[stride*col+2];
+			//        fp = 256*fp1+fp2;
+//
+			//        fpp1 = ypp_m_t[stride*col+1];
+			//        fpp2 = ypp_m_t[stride*col+2];
+			//        fpp = 256*fpp1+fpp2;
+//
+			//        f1 = y_m_t[stride*col+1];
+			//        f2 = y_m_t[stride*col+2];
+			//        f = 256*f1+f2;
+//
+			//		//Find the right box for this pixel
+			//		unsigned int r = -1;
+			//		r = (unsigned int)(256 * in[col]);
+			//		if (r >= 0) {
+			//			atomicAdd(&gmem[r], ps);
+			//			atomicAdd(&gmem_fx[r], ps_fx);
+			//			atomicAdd(&gmem_fy[r], ps_fy);
+			//			atomicAdd(&gmem_m[r], ps_m);
+			//		}
+			//	}
+			}
 			}
 			""")
-			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M, num_vertices = self.N)
+			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M, num_vertices = self.n)
 			cuda_module = SourceModule(cuda_source, no_extern_c=1)
 			# The argument "PPP" indicates that the zscore function will take three PBOs as arguments
-			self.cuda_jz = cuda_module.get_function("jz")
-			self.cuda_jz.prepare("PPPPPPPPPPPPPPPPi")
-			self.cuda_j = cuda_module.get_function("j")
-			self.cuda_j.prepare("PPPPPPPPPPPPPPPPi")
 			self.cuda_histjz = cuda_module.get_function("histogram_jz")
 			self.cuda_histjz.prepare("PPPPPPPPPPPPPPPPi")
 			self.cuda_histj = cuda_module.get_function("histogram_j")
@@ -363,13 +367,13 @@ class CUDAGL_multi(CUDAGL):
 		########################################################################
 
 		#Load buffer for packing
-		rgbsize = 3 #24-bit
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
-		self._pack_texture_into_PBO(y_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(y_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
-		#Load y_im (current frame) info from CPU memory
+		#Load y_m (current frame) info from CPU memory
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_m_pbo))
-		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height*rgbsize, y_m, GL_STREAM_DRAW)
+		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_m, GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
 
@@ -396,7 +400,7 @@ class CUDAGL_multi(CUDAGL):
 
 		assert yp_tilde_pbo is not None
 		floatsize = 4 #number of bytes, 32bit precision...
-		rgbsize = 3 #24-bit
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
 
 		#state.refresh()
@@ -410,7 +414,7 @@ class CUDAGL_multi(CUDAGL):
 		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
 		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
 		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
@@ -444,13 +448,13 @@ class CUDAGL_multi(CUDAGL):
 		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
 		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
 		
-		partialsum = np.zeros((nBlocks,self.N), dtype=np.float32)
+		partialsum = np.zeros((nBlocks*self.n,1), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
-		partialsum_fx = np.zeros((nBlocks,self.N), dtype=np.float32)
+		partialsum_fx = np.zeros((nBlocks*self.n,1), dtype=np.float32)
 		partialsum_fx_gpu = gpuarray.to_gpu(partialsum_fx)
-		partialsum_fy = np.zeros((nBlocks,self.N), dtype=np.float32)
+		partialsum_fy = np.zeros((nBlocks*self.n,1), dtype=np.float32)
 		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
-		partialsum_m = np.zeros((nBlocks,self.N), dtype=np.float32)
+		partialsum_m = np.zeros((nBlocks*self.n,1), dtype=np.float32)
 		partialsum_m_gpu = gpuarray.to_gpu(partialsum_m)
 
 
@@ -463,7 +467,7 @@ class CUDAGL_multi(CUDAGL):
 
 		#Make the call...
 		cuda_driver.Context.synchronize()
-		self.cuda_jz.prepared_call(grid_dimensions, block_dimensions,\
+		self.cuda_histjz.prepared_call(grid_dimensions, block_dimensions,\
 			 im_mapping.device_ptr(),fx_mapping.device_ptr(),\
 			 fy_mapping.device_ptr(),m_mapping.device_ptr(),\
 			 tilde_im_mapping.device_ptr(),tilde_fx_mapping.device_ptr(),\
@@ -495,13 +499,25 @@ class CUDAGL_multi(CUDAGL):
 		partialsum_fx = partialsum_fx_gpu.get()
 		partialsum_fy = partialsum_fy_gpu.get()
 		partialsum_m = partialsum_m_gpu.get()
-		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
-		sum_fx_gpu = np.sum(partialsum_fx[0:np.ceil(nBlocks/2.)])
-		sum_fy_gpu = np.sum(partialsum_fy[0:np.ceil(nBlocks/2.)])
-		sum_m_gpu = np.sum(partialsum_m[0:np.ceil(nBlocks/2.)])
+
+		#Reshape arrays
+		partialsum = np.reshape(partialsum, (nBlocks,self.n))
+		partialsum_fx = np.reshape(partialsum_fx, (nBlocks,self.n))
+		partialsum_fy = np.reshape(partialsum_fy, (nBlocks,self.n))
+		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.n))
+
+		print partialsum.shape 
+
+		sum_gpu = np.matrix(np.sum(partialsum,0)).T
+		sum_fx_gpu = np.matrix(np.sum(partialsum_fx,0)).T
+		sum_fy_gpu = np.matrix(np.sum(partialsum_fy,0)).T
+		sum_m_gpu = np.matrix(np.sum(partialsum_m,0)).T
+
+		print sum_m_gpu.shape 
+
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
-		jzc = np.array([sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu])
+		jzc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
 		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
 	def j(self, state, deltaX, i, j):
@@ -517,7 +533,7 @@ class CUDAGL_multi(CUDAGL):
 
 		assert yp_tilde_pbo is not None
 		floatsize = 4
-		rgbsize = 3 #24-bit
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
 
 		#Perturb first
@@ -534,7 +550,7 @@ class CUDAGL_multi(CUDAGL):
 		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RBGA)
 		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
 		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
 		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
@@ -554,7 +570,7 @@ class CUDAGL_multi(CUDAGL):
 		self._pack_texture_into_PBO(ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
 		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
 		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
