@@ -75,366 +75,168 @@ class CUDAGL_multi(CUDAGL):
 			//Argument below:
 			//PPPPPPPPPPPPPPPPi
 
-			__global__ void jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
+			__global__ void histogram_jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
 								unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t,
 								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t,
 								float *output, float *output_fx, float *output_fy, float *output_m,
-								int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    __shared__ float partialSum_fx[2*{{ block_size }}];
-			    __shared__ float partialSum_fy[2*{{ block_size }}];
-			    __shared__ float partialSum_m[2*{{ block_size }}];
+								int len) {
+
+				int stride = 4;
+				int m, mp, fp1, fp2, fp, f1, f2, f;
+
+			    float ps;
+			    float ps_fx;
+			    float ps_fy;
+			    float ps_m;
 
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
 			    float eps_M = {{ eps_M }};
 
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int s = 2*blockIdx.x*blockDim.x;
+				// pixel coordinates
+				int x = blockIdx.x * blockDim.x + threadIdx.x;		
+				// grid dimensions
+				int nx = blockDim.x * gridDim.x; 
+				// linear thread index within 2D block
+				int t = threadIdx.x; 
+				// total threads in 2D block
+				int nt = blockDim.x; 
+				// linear block index within 2D grid
+				int g = blockIdx.x;
 
-			    //CPU code for reference
-	    		//self.z = (y_im.astype(float) - y_tilde.astype(float))/255
-			  	//self.zfx = y_flow[:,:,0] - y_fx_tilde
-				//self.zfy = y_flow[:,:,1] + y_fy_tilde
-				//hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
-				//hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
-				//hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+				// initialize temporary accumulation array in global memory
+				float *gmem = output + g * {{ num_vertices }};
+				float *gmem_fx = output_fx + g * {{ num_vertices }};
+				float *gmem_fy = output_fy + g * {{ num_vertices }};
+				float *gmem_m = output_m + g * {{ num_vertices }};
 
-			    if ((s + t) < len)
-			    {
-			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(y_im[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[t] = (yp_fx_t[s+t]-y_fx_t[s+t])*(y_fx[s+t]-y_fx_t[s+t])/eps_J;
-			        partialSum_fy[t] = -(yp_fy_t[s+t]-y_fy_t[s+t])*(y_fy[s+t]+y_fy_t[s+t])/eps_J;
-			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(y_m[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0.0;
-			        partialSum_fx[t] = 0.0;
-			        partialSum_fy[t] = 0.0;
-			        partialSum_m[t] = 0.0;
-			    }
-			    if ((s + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(y_im[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[blockDim.x + t] = (yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*(y_fx[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])/eps_J;
-			        partialSum_fy[blockDim.x + t] = -(yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*(y_fy[s+blockDim.x+t]+y_fy_t[s+blockDim.x+t])/eps_J;
-			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(y_m[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			        partialSum_fx[blockDim.x + t] = 0.0;
-			        partialSum_fy[blockDim.x + t] = 0.0;
-			        partialSum_m[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			            partialSum_fx[t] += partialSum_fx[t + stride];
-			            partialSum_fy[t] += partialSum_fy[t + stride];
-			            partialSum_m[t] += partialSum_m[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			        output_fx[blockIdx.x] = partialSum_fx[t];
-			        output_fy[blockIdx.x] = partialSum_fy[t];
-			        output_m[blockIdx.x] = partialSum_m[t];
-			    }
+				for (int i = t; i < {{ num_vertices }}; i += nt) {
+					gmem[i] = 0;
+					gmem_fx[i] = 0;
+					gmem_fy[i] = 0;
+					gmem_m[i] = 0;
+				}
+
+				// process pixels
+				// updates our block's partial histogram in global memory
+				for (int col = x; col < len; col += nx) {
+					ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(y_im[col]-y_im_t[col]))/255.0/255.0/eps_Z;
+					ps_fx = (yp_fx_t[col]-y_fx_t[col])*(y_fx[col]-y_fx_t[col])/eps_J;
+					ps_fy = -(yp_fy_t[col]-y_fy_t[col])*(y_fy[col]+y_fy_t[col])/eps_J;
+					ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*colcol]))*((float)(y_m[col]-y_m_t[stride*col]))/255.0/255.0/eps_M;
+
+			        //Face components from mask render
+			        mp = yp_m_t[stride*col] == 255;
+			        m = y_m_t[stride*col] == 255;
+
+			        fp1 = yp_m_t[stride*col+1];
+			        fp2 = yp_m_t[stride*col+2];
+			        fp = 256*fp1+fp2;
+
+			        f1 = y_m_t[stride*col+1];
+			        f2 = y_m_t[stride*col+2];
+			        f = 256*f1+f2;
+
+			        face = m * f + (m! && mp) * fp;
+
+			        if (m || mp) & (face < 256*256-1) {
+						atomicAdd(&gmem[face], ps);
+						atomicAdd(&gmem_fx[face], ps_fx);
+						atomicAdd(&gmem_fy[face], ps_fy);
+						atomicAdd(&gmem_m[face], ps_m);
+					}
+				}
 			}
 
-			__global__ void j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
+			__global__ void histogram_j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
 								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
 								unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
 								float *output, float *output_fx, float *output_fy, float *output_m, 
-								int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    __shared__ float partialSum_fx[2*{{ block_size }}];
-			    __shared__ float partialSum_fy[2*{{ block_size }}];
-			    __shared__ float partialSum_m[2*{{ block_size }}];
-			    const unsigned int scale = 1;
+								int len) {
+
+			    float ps;
+			    float ps_fx;
+			    float ps_fy;
+			    float ps_m;
+
+			    int stride = 4;
 
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
 			    float eps_M = {{ eps_M }};
 
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int s = 2*blockIdx.x*blockDim.x;
+				// pixel coordinates
+				int x = blockIdx.x * blockDim.x + threadIdx.x;		
+				// grid dimensions
+				int nx = blockDim.x * gridDim.x; 
+				// linear thread index within 2D block
+				int t = threadIdx.x; 
+				// total threads in 2D block
+				int nt = blockDim.x; 
+				// linear block index within 2D grid
+				int g = blockIdx.x;
 
-			    //CPU code for reference
-				//hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
-				//hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
-				//hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
+				// initialize temporary accumulation array in global memory
+				float *gmem = output + g * {{ num_vertices }};
+				float *gmem_fx = output_fx + g * {{ num_vertices }};
+				float *gmem_fy = output_fy + g * {{ num_vertices }};
+				float *gmem_m = output_m + g * {{ num_vertices }};
 
-			    if ((s + t) < len)
-			    {
-			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale)/eps_J;
-			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale)/eps_J;
-			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(ypp_m_t[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
+				for (int i = t; i < {{ num_vertices }}; i += nt) {
+					gmem[i] = 0;
+					gmem_fx[i] = 0;
+					gmem_fy[i] = 0;
+					gmem_m[i] = 0;
+				}
 
-			        //partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))/255.0;
-			        //partialSum_fx[t] = (ypp_fx_t[s+t]-y_fx_t[s+t]);
-			        //partialSum_fy[t] = (ypp_fy_t[s+t]-y_fy_t[s+t]);
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0.0;
-			        partialSum_fx[t] = 0.0;
-			        partialSum_fy[t] = 0.0;
-			        partialSum_m[t] = 0.0;
-			    }
-			    if ((s + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)/eps_J;
-			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)/eps_J;
-			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(ypp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
+				// process pixels
+				// updates our block's partial histogram in global memory
+				for (int col = x; col < len; col += nx) {
+			        ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(ypp_im_t[col]-y_im_t[col]))/255.0/255.0/eps_Z;
+			        ps_fx = ((yp_fx_t[col]-y_fx_t[col])*scale)*((ypp_fx_t[col]-y_fx_t[col])*scale)/eps_J;
+			        ps_fy = ((yp_fy_t[col]-y_fy_t[col])*scale)*((ypp_fy_t[col]-y_fy_t[col])*scale)/eps_J;
 
-			        //partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0;
-			        //partialSum_fx[blockDim.x + t] = (ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);
-			        //partialSum_fy[blockDim.x + t] = (ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t]);
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			        partialSum_fx[blockDim.x + t] = 0.0;
-			        partialSum_fy[blockDim.x + t] = 0.0;
-			        partialSum_m[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			            partialSum_fx[t] += partialSum_fx[t + stride];
-			            partialSum_fy[t] += partialSum_fy[t + stride];
-			            partialSum_m[t] += partialSum_m[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			        output_fx[blockIdx.x] = partialSum_fx[t];
-			        output_fy[blockIdx.x] = partialSum_fy[t];
-			        output_m[blockIdx.x] = partialSum_m[t];
-			    }
-			}
+			        //Mask component
+			        ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(ypp_m_t[col*stride]-y_m_t[stride*col]))/255.0/255.0/eps_M;
 
-			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
+			        //Face components from mask render
+			        fp1 = yp_m_t[stride*col+1];
+			        fp2 = yp_m_t[stride*col+2];
+			        fp = 256*fp1+fp2;
 
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = (float)y_tilde[start + t]*(float)y_im[start + t]/255.0/255.0;
-			        //partialSum[t] = y_im[start + t]/255.0;
-			        //partialSum[t] = y_tilde[(start + t)]/255.0;
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = (float)y_tilde[start + blockDim.x + t]*(float)y_im[start + blockDim.x + t]/255.0/255.0;
-			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t]/255.0;
-			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)]/255.0;
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
+			        fpp1 = ypp_m_t[stride*col+1];
+			        fpp2 = ypp_m_t[stride*col+2];
+			        fpp = 256*fpp1+fpp2;
 
-			__global__ void initjac_int(unsigned char *y_tilde, unsigned char *y_im, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
+			        f1 = y_m_t[stride*col+1];
+			        f2 = y_m_t[stride*col+2];
+			        f = 256*f1+f2;
 
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = (float)y_tilde[start + t]*(float)y_im[start + t];
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = (float)y_tilde[start + blockDim.x + t]*(float)y_im[start + blockDim.x + t];
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
-
-			__global__ void initjac_float(float *y_tilde, float *y_im, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
-
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = y_tilde[start + t]*y_im[start + t];
-			        //partialSum[t] = y_im[start + t];
-			        //partialSum[t] = y_tilde[(start + t)];
-			    }
-			    else
-			    {
-			        partialSum[t] = 0.0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {
-			        partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)];
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
-
-			//Sum all elements of an input array of floats... (for testing purposes)
-			__global__ void total(float *input, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = input[start + t];      
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0.0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = input[start + blockDim.x + t];
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
+					//Find the right box for this pixel
+					IMPLEMENT!!
+					unsigned int r = -1;
+					r = (unsigned int)(256 * in[col]);
+					if (r >= 0) {
+						atomicAdd(&gmem[r], ps);
+						atomicAdd(&gmem_fx[r], ps_fx);
+						atomicAdd(&gmem_fy[r], ps_fy);
+						atomicAdd(&gmem_m[r], ps_m);
+					}
+				}
 			}
 			""")
-			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M)
+			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M, num_vertices = self.N)
 			cuda_module = SourceModule(cuda_source, no_extern_c=1)
 			# The argument "PPP" indicates that the zscore function will take three PBOs as arguments
 			self.cuda_jz = cuda_module.get_function("jz")
 			self.cuda_jz.prepare("PPPPPPPPPPPPPPPPi")
 			self.cuda_j = cuda_module.get_function("j")
 			self.cuda_j.prepare("PPPPPPPPPPPPPPPPi")
-			self.cuda_initjac = cuda_module.get_function("initjac")
-			self.cuda_initjac.prepare("PPPi")
-			self.cuda_initjac_int = cuda_module.get_function("initjac_int")
-			self.cuda_initjac_int.prepare("PPPi")
-			self.cuda_initjac_float = cuda_module.get_function("initjac_float")
-			self.cuda_initjac_float.prepare("PPPi")
-			self.cuda_total = cuda_module.get_function("total")
-			self.cuda_total.prepare("PPP")
-
-			# create y_tilde and y_im pixel buffer objects for processing
+			self.cuda_histjz = cuda_module.get_function("histogram_jz")
+			self.cuda_histjz.prepare("PPPPPPPPPPPPPPPPi")
+			self.cuda_histj = cuda_module.get_function("histogram_j")
+			self.cuda_histj.prepare("PPPPPPPPPPPPPPPPi")
 			self._createPBOs()
-
-	def __del__(self):
-		self._destroy_PBOs()
-
-	def _initializePBO(self, data):
-		pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_pbo = cuda_gl.BufferObject(long(pbo))
-		return (pbo, pycuda_pbo)
 
 	def _createPBOs(self):
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
@@ -490,60 +292,6 @@ class CUDAGL_multi(CUDAGL):
 		(yp_m_tilde_pbo, pycuda_yp_m_tilde_pbo) = self._initializePBO(data)
 		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
-
-	def _destroy_PBOs(self):
-		global pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo
-
-		for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
-		 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
-			glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
-			glDeleteBuffers(1, long(pbo));
-			glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-		pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo = [None]*32
-
-	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW):
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(pbo))
-		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
-		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, bytesize, None, usage)
-		glEnable(GL_TEXTURE_2D)
-		glActiveTexture(GL_TEXTURE0)
-		glBindTexture(GL_TEXTURE_2D, texid)
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, texformat, ctypes.c_void_p(0))
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
-		glDisable(GL_TEXTURE_2D)
 
 	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
 		y_im = np.flipud(y_im_flip)
@@ -640,70 +388,6 @@ class CUDAGL_multi(CUDAGL):
 		else:
 			return None 
 
-	def total_test(self):
-		return self._process_total_test()
-
-	def _process_initjac_test(self, mode=TEST_IMAGE):
-		"""Use PyCuda"""
-		nElements = self.width*self.height
-		nBlocks = nElements/BLOCK_SIZE + 1
-		print 'No. elements:', nElements
-		print 'No. blocks:', nBlocks
-		grid_dimensions = (nBlocks, 1)
-		block_dimensions = (BLOCK_SIZE, 1, 1)
-
-		if mode == TEST_IMAGE:
-			tilde_mapping = pycuda_y_tilde_pbo.map()
-			im_mapping = pycuda_y_im_pbo.map()
-			kernel = self.cuda_initjac
-			#dtype = np.uint32
-			dtype = np.float32
-		elif mode == TEST_FLOWX:
-			tilde_mapping = pycuda_y_fx_tilde_pbo.map()
-			im_mapping = pycuda_y_fx_pbo.map()
-			kernel = self.cuda_initjac_float
-			dtype = np.float32
-		elif mode == TEST_MASK:
-			tilde_mapping = pycuda_y_m_tilde_pbo.map()
-			im_mapping = pycuda_y_m_pbo.map()
-			kernel = self.cuda_initjac
-			#dtype = np.uint32
-			dtype = np.float32
-		else:
-			tilde_mapping = pycuda_y_fy_tilde_pbo.map()
-			im_mapping = pycuda_y_fy_pbo.map()
-			kernel = self.cuda_initjac_float
-			dtype = np.float32
-		
-		partialsum = np.zeros((nBlocks,1), dtype=dtype)
-		partialsum_gpu = gpuarray.to_gpu(partialsum)
-		kernel.prepared_call(grid_dimensions, block_dimensions,\
-			 tilde_mapping.device_ptr(), \
-			 im_mapping.device_ptr(), partialsum_gpu.gpudata, np.uint32(nElements))
-		cuda_driver.Context.synchronize()
-		tilde_mapping.unmap()
-		im_mapping.unmap()
-		partialsum = partialsum_gpu.get()
-		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
-		return sum_gpu
-
-	def _process_total_test(self):
-		"""Use PyCuda"""
-		nElements = np.int32(BLOCK_SIZE*16+10)
-		nBlocks = nElements/BLOCK_SIZE + 1
-		grid_dimensions = (nBlocks,1,1)
-		a = np.random.randn(nElements).astype(np.float32)
-		sum_cpu = np.sum(a)
-		partialsum_gpu = np.zeros((nBlocks,1), dtype=np.float32)
-		self.cuda_total(cuda_driver.In(a), cuda_driver.Out(partialsum_gpu), \
-			np.uint32(nElements), grid=grid_dimensions, block=(BLOCK_SIZE, 1, 1))
-		cuda_driver.Context.synchronize()
-		#Sum result from GPU
-		print nBlocks
-		print partialsum_gpu
-		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
-		return sum_cpu, sum_gpu
-
 	def jz(self, state):
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
@@ -760,13 +444,13 @@ class CUDAGL_multi(CUDAGL):
 		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
 		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
 		
-		partialsum = np.zeros((nBlocks,1), dtype=np.float32)
+		partialsum = np.zeros((nBlocks,self.N), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
-		partialsum_fx = np.zeros((nBlocks,1), dtype=np.float32)
+		partialsum_fx = np.zeros((nBlocks,self.N), dtype=np.float32)
 		partialsum_fx_gpu = gpuarray.to_gpu(partialsum_fx)
-		partialsum_fy = np.zeros((nBlocks,1), dtype=np.float32)
+		partialsum_fy = np.zeros((nBlocks,self.N), dtype=np.float32)
 		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
-		partialsum_m = np.zeros((nBlocks,1), dtype=np.float32)
+		partialsum_m = np.zeros((nBlocks,self.N), dtype=np.float32)
 		partialsum_m_gpu = gpuarray.to_gpu(partialsum_m)
 
 
