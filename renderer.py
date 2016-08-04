@@ -255,7 +255,7 @@ class Renderer(app.Canvas):
 		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		#No straightforward 1 bit texture support... possibly can do with some tricks, but also 
 		#possibly not worth it.
-		self._rendertex4 = gloo.Texture2D((self.shape + (3,)), format="rgb", internalformat="rgb")
+		self._rendertex4 = gloo.Texture2D((self.shape + (4,)), format="rgba", internalformat="rgba")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
