@@ -314,6 +314,10 @@ class Renderer(app.Canvas):
 	def on_draw(self, event):
 		self.draw(event)
 
+	def _updatemaskpalette(self, colors):
+		for i in range(len(colors)):
+			self._program_mask['u_colors[%d]'%i] = colors[i,:]
+
 	def draw(self, event):
 		#Turn on additive blending
 		gloo.set_state('additive')
@@ -326,7 +330,8 @@ class Renderer(app.Canvas):
 			self._program_flow.draw('triangles', self.indices_buffer)
 		elif self.state == 'mask':
 			self._program_mask.bind(self._vbo)
-			self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
+			self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			#print self._program_mask['u_colors']#self.randfacecolors[:,:,0]
 			self._program_mask.draw('triangles', self.indices_buffer)			
 		else:
 			self._program_red['texture1'] = self.current_texture
@@ -377,6 +382,7 @@ class Renderer(app.Canvas):
 			return None
 		else:
 			oldstate = self.state
+			self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
 			#change render mode, rerender, and save
 			#for state in ['flow', 'raw', 'overlay', 'texture']:
 			for state in ['raw', 'overlay', 'texture', 'mask']:
@@ -466,7 +472,9 @@ class Renderer(app.Canvas):
 	
 			#Update uniform data
 			self._program_lines['u_colors'] = self.linecolors
-		self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,multi_idx])
+		#self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,multi_idx])
+		self._updatemaskpalette(np.squeeze(self.facecolors[:,:,multi_idx]))
+
 
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx, labels):
@@ -520,6 +528,13 @@ class Renderer(app.Canvas):
 			for idx,t in enumerate(self.tri):
 				self.facecolors[idx, 1, i] = np.floor_divide(labels[idx,i], 256)
 				self.facecolors[idx, 2, i] = np.remainder(labels[idx,i], 256)
+
+		#Setup multiperturbation face colors, randomized for clearer visualization
+		randcolors = np.random.rand(len(vertices), 3)
+		self.randfacecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
+		for i in range(labels.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.randfacecolors[idx, :, i] = 255*randcolors[labels[idx,i],:]
 
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
