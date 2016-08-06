@@ -17,6 +17,8 @@ from timeit import timeit
 import time 
 from numpy.linalg import norm, inv 
 
+from useful import * 
+
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
 class Statistics:
@@ -213,7 +215,6 @@ class KFState:
 		#For each element of the partitions we label the triangles and assign them colors
 		#for the mask 
 		#We check there're no conflicts in the labels
-
 		#Horribly inefficient... 
 		self.labels = -1*np.ones((len(self.tri), len(self.E)))
 		for k,e in enumerate(self.E):
@@ -227,6 +228,124 @@ class KFState:
 			self.labels[:,k] = label
 
 		#print self.labels 
+
+		#Compute independent pairs of dependent pairs of vertices
+		Q = []
+		for i in range(self.N):
+			for j in range(i+1,self.N):
+				if self.Jv[i,j]:
+					Q = Q + [[i,j]] 
+
+		while len(Q) > 0:
+			#print 'Outer loop'
+			P = []
+			e = []
+			while len(Q) > 0:
+				#print '  * Inner loop'
+				#Current vertices
+				q = Q[0]
+
+				#Things connected to current vertex
+				p = np.nonzero(Jv[q,:])[0]
+				p = np.setdiff1d(p, q)
+
+				#Add current vertex
+				e += [q]
+
+				#Add things connected to current vertex to the 'do later' list
+				P = np.intersect1d(np.union1d(P, p), A)
+
+				A = np.setdiff1d(A, q)
+				#Remove q and p from Q
+				Q = np.setdiff1d(Q, p)
+				Q = np.setdiff1d(Q, q)
+			Q = P
+			self.E += [e]			
+
+		########################################################################
+		#Compute independent pairs of dependent pairs of vertices###############
+		########################################################################
+		E_hessian = []
+		E_hessian_idx = []
+		Q = []
+		for i in range(self.N):
+			for j in range(i,self.N):
+				if Jv[i,j]:
+					Q = Q + [[i,j]]
+		Q = np.array(Q)
+		Qidx = np.arange(len(Q))
+		A = Q.copy()
+		Aidx = Qidx.copy()
+		
+		while len(Q) > 0:
+			#print 'Outer loop'
+			P = np.array([])
+			Pidx = np.array([])
+			e = np.array([])
+			eidx = np.array([])
+			while len(Q) > 0:
+				#print '  * Inner loop'
+				#Current vertices
+				q = Q[0]
+				qidx = Qidx[0]
+				#All things connected to current vertex
+				p1 = np.nonzero(Jv[q[0],:])[0]
+				p2 = np.nonzero(Jv[q[1],:])[0]
+				p = np.union1d(p1,p2)
+				p = np.setdiff1d(p, q)
+				#All pairs that contain these vertices
+				p_all1 = np.array([i in p for i in Q[:,0]])
+				p_all2 = np.array([i in p for i in Q[:,1]])
+				p_all_idx = p_all1 + p_all2 
+				p_all = Q[p_all_idx,:]
+				p_all_idx = Qidx[p_all_idx]
+		
+				#Add current vertex
+				e = union2d(e, q)
+				eidx = np.union1d(eidx,[qidx])
+		
+				#Add things connected to current vertex to the 'do later' list
+				P = intersect2d(union2d(P, p_all), A)
+				Pidx = np.intersect1d(np.union1d(Pidx, p_all_idx), Aidx)
+				A = setdiff2d(A, q)
+				Aidx = np.setdiff1d(Aidx, qidx)
+				#Remove q and p from Q
+				Q = setdiff2d(Q, p_all)
+				Q = setdiff2d(Q, q)
+				Qidx = np.setdiff1d(Qidx, p_all_idx)
+				Qidx = np.setdiff1d(Qidx, qidx)
+			Q = P
+			Qidx = Pidx
+			E_hessian += [e]	
+			E_hessian_idx += [eidx]	
+		
+		self.E_hessian = E_hessian 
+		self.E_hessian_idx = E_hessian_idx
+
+		#Create labels for the hessian multiperturbation
+		Q = []
+		for i in range(self.N):
+			for j in range(i,self.N):
+				if Jv[i,j]:
+					Q = Q + [[i,j]]
+		Q = np.array(Q)
+		self.Q = Q 
+
+		self.labels_hess = -1*np.ones((len(self.tri), len(self.E_hessian)))
+		print self.E_hessian 
+		for k,e in enumerate(self.E_hessian):
+			label = -1*np.ones(len(self.tri))
+			#For each triangle, find it any of its vertices are mentioned in e,
+			#give it a color...
+			if len(e.shape) < 2:
+				e = np.reshape(e, (-1,2))
+			for i, nodes in enumerate(e):
+				print nodes 
+				n1, n2 = nodes 
+				for j, t in enumerate(self.tri):
+					if n1 in t or n2 in t:
+						label[j] = E_hessian_idx[k][i]
+			self.labels_hess[:,k] = label
 
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, self.labels, showtracking = True)
@@ -356,6 +475,28 @@ class KFState:
 		return HTH
 
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
+	def _hessian_sparse_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		HTH = np.zeros((self.size(),self.size()))
+		self.refresh() 
+		self.render()
+		#Set reference image to unperturbed images
+		self.renderer.initjacobian(y_im, y_flow, y_m)
+
+
+
+		for i in range(self.size()):
+			for j in range(i, self.size()):
+				if self.J[i,j] == 1:
+					hij = self.renderer.j(self, deltaX, i, j)
+				else:
+					hij = 0.
+				HTH[i,j] = hij/deltaX/deltaX
+				#Fill in the other triangle
+				HTH[j,i] = HTH[i,j]
+		self.refresh() 
+		self.render()
+		return HTH
+
 	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
