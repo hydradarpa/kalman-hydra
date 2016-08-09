@@ -160,10 +160,11 @@ class CUDAGL_multi(CUDAGL):
 								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
 								unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
 								float *output, float *output_fx, float *output_fy, float *output_m, 
-								int len) {
+								float *output_nz, int len) {
 
 				int stride = 4;
-				int m, mp, fp1, fp2, fp, f1, f2, f, face;
+				int m, mp, mpp, fpp1, fpp2, fpp, fp1, fp2, fp, f1, f2, f, face;
+				int scale = 1;
 
 			    float ps;
 			    float ps_fx;
@@ -190,12 +191,14 @@ class CUDAGL_multi(CUDAGL):
 				float *gmem_fx = output_fx + g * {{ num_q }};
 				float *gmem_fy = output_fy + g * {{ num_q }};
 				float *gmem_m = output_m + g * {{ num_q }};
+				float *gmem_nz = output_nz + g * {{ num_q }};
 
 				for (int i = t; i < {{ num_vertices }}; i += nt) {
 					gmem[i] = 0;
 					gmem_fx[i] = 0;
 					gmem_fy[i] = 0;
 					gmem_m[i] = 0;
+					gmem_nz[i] = 0;
 				}
 
 				// process pixels
@@ -225,18 +228,61 @@ class CUDAGL_multi(CUDAGL):
 			        f2 = y_m_t[stride*col+2];
 			        f = 256*f1+f2;
 
-			        face = m * f + (!m && mp) * fp;
+			        //if (f == 110 || fp == 110 || fpp == 100) {
+					//		printf("f = %d, fp = %d, fpp = %d. ", f, fp, fpp);
+					//}
+
+					//m * f + (!m && mp) * fp;
+			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
 
 			        if ((m || mp || mpp) && (face < (256*256-1))) {
-				        if (face > {{ num_vertices }})
+				        if (face > {{ num_q }})
 							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
-						if (face == 34) {
-							printf("Found face 34. ");
-						}
+						
+						//if (face == 110) {
+						//	printf("--Found face 110. ");
+						//}
+						//if (face == 102) {
+						//	printf("--Found face 102. ");
+						//}
+						//if (face == 91) {
+						//	printf("--Found face 91. ");
+						//}
+						//if (face == 88) {
+						//	printf("Found face 88. ");
+						//}
+						//if (face == 73) {
+						//	printf("Found face 73. ");
+						//}
+						//if (face == 58) {
+						//	printf("Found face 58. ");
+						//} //0.,    3.,   13.,   20.,   29.,   53.,
+
+
+						//if (face == 0) {
+						//	printf("Found face 0. ");
+						//}
+						//if (face == 3) {
+						//	printf("--Found face 3. ");
+						//}
+						//if (face == 13) {
+						//	printf("--Found face 13. ");
+						//}
+						//if (face == 20) {
+						//	printf("Found face 20. ");
+						//}
+						//if (face == 29) {
+						//	printf("--Found face 29. ");
+						//}
+						//if (face == 53) {
+						//	printf("Found face 53. ");
+						//} //0.,    3.,   13.,   20.,   29.,   53.,
+
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
 						atomicAdd(&gmem_fy[face], ps_fy);
 						atomicAdd(&gmem_m[face], ps_m);
+						atomicAdd(&gmem_nz[face], 1);
 					}
 				}
 			}
@@ -248,7 +294,7 @@ class CUDAGL_multi(CUDAGL):
 			self.cuda_histjz = cuda_module.get_function("histogram_jz")
 			self.cuda_histjz.prepare("PPPPPPPPPPPPPPPPi")
 			self.cuda_histj = cuda_module.get_function("histogram_j")
-			self.cuda_histj.prepare("PPPPPPPPPPPPPPPPi")
+			self.cuda_histj.prepare("PPPPPPPPPPPPPPPPPi")
 			self._createPBOs()
 
 	def _createPBOs(self):
@@ -763,13 +809,15 @@ class CUDAGL_multi(CUDAGL):
 		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
 		partialsum_m = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
 		partialsum_m_gpu = gpuarray.to_gpu(partialsum_m)
+		partialsum_nz = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_nz_gpu = gpuarray.to_gpu(partialsum_nz)
 
 		#CUDA definition
-		#__global__ void j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
+		#__global__ void histj(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
 		#					unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
 		#					unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
 		#					float *output, float *output_fx, float *output_fy, float *output_m, 
-		#					int len) 
+		#					float *output_nz, int len) 
 
 		#Make the call...
 		self.cuda_histj.prepared_call(grid_dimensions, block_dimensions,\
@@ -781,7 +829,7 @@ class CUDAGL_multi(CUDAGL):
 			 pp_tilde_fy_mapping.device_ptr(),pp_tilde_m_mapping.device_ptr(),\
 			 partialsum_gpu.gpudata, partialsum_fx_gpu.gpudata,\
 			 partialsum_fy_gpu.gpudata, partialsum_m_gpu.gpudata,\
-			 np.uint32(nElements))
+			 partialsum_nz_gpu.gpudata, np.uint32(nElements))
 		cuda_driver.Context.synchronize()
 
 		tilde_im_mapping.unmap()
@@ -804,12 +852,14 @@ class CUDAGL_multi(CUDAGL):
 		partialsum_fx = partialsum_fx_gpu.get()
 		partialsum_fy = partialsum_fy_gpu.get()
 		partialsum_m = partialsum_m_gpu.get()
+		partialsum_nz = partialsum_nz_gpu.get()
 
 		#Reshape arrays
 		partialsum = np.reshape(partialsum, (nBlocks,self.len_Q))
 		partialsum_fx = np.reshape(partialsum_fx, (nBlocks,self.len_Q))
 		partialsum_fy = np.reshape(partialsum_fy, (nBlocks,self.len_Q))
 		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.len_Q))
+		partialsum_nz = np.reshape(partialsum_nz, (nBlocks,self.len_Q))
 
 		print partialsum.shape 
 
@@ -818,9 +868,12 @@ class CUDAGL_multi(CUDAGL):
 		sum_fy_gpu = np.matrix(np.sum(partialsum_fy,0)).T
 		sum_m_gpu = np.matrix(np.sum(partialsum_m,0)).T
 
+		sum_nz_gpu = np.matrix(np.sum(partialsum_nz,0)).T
+		j_nz = sum_nz_gpu > 0
+
 		print sum_m_gpu.shape 
 
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
-		jzc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
-		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
+		#jzc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
+		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, j_nz)
