@@ -58,8 +58,49 @@ rms_pos = np.zeros(nF)
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
 
+#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
+#self = kf.state.renderer
+
+
+
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
-self = kf.state.renderer
+self = kf.state
+
+HTH = np.zeros((self.size(),self.size()))
+self.refresh() 
+self.render()
+#Set reference image to unperturbed images
+self.renderer.initjacobian(frame, flowframe, mask)
+
+#for idx, e in enumerate(self.E_hessian):
+idx = 0
+e = self.E_hessian[0]
+
+ee = e.copy()
+eeidx = self.E_hessian_idx[idx]
+
+#for i1 in range(2):
+#	for j1 in range(2):
+#		for i2 in range(2):
+#			for j2 in range(2):
+
+i1 = i2 = j1 = j2 = 0
+deltaX = 2
+
+offset1 = i1+2*self.N*j1 
+offset2 = i2+2*self.N*j2 
+ee[:,0] = 2*e[:,0] + offset1 
+ee[:,1] = 2*e[:,1] + offset2 
+(h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+h = h[h_hist > 0]
+qidx = self.Q[h_hist > 0]
+for idx2 in range(len(qidx)):
+	q = qidx[idx2]
+	q1 = 2*q[0]+i1+2*self.N*j1
+	q2 = 2*q[1]+i2+2*self.N*j2
+	HTH[q1,q2] = h[idx2]/deltaX/deltaX
+	HTH[q2,q1] = HTH[q1,q2]
+
 
 ################################################################################
 ################################################################################
@@ -286,50 +327,3 @@ Q = np.array(Q)
 ################################################################################
 ################################################################################
 ################################################################################
-
-
-kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
-self = kf.state.renderer
-
-#Test labels
-with self._fbo4:
-	m = gloo.read_pixels()
-np.max(m[:,:,2])
-np.sum(m[:,:,2] == 255)
-np.unique(m[:,:,2])
-kf.state.E[0]
-kf.state.labels
-np.unique(m[:,:,1])
-
-self = kf.state
-Hz = np.zeros((self.size(),1))
-Hz_components = np.zeros((self.size(),4))
-self.refresh() 
-self.render()
-self.renderer.initjacobian(frame, flowframe, mask)
-idx = 0
-e = np.array(self.E[0])
-i = 0
-j = 0
-deltaX = 2
-
-offset = i+2*self.N*j 
-ee = offset + 2*e 
-self.X[ee,0] += deltaX
-self.refresh(idx)
-self.render()
-(hz, hzc) = self.renderer.jz(self)
-Hz[ee,0] = hz/deltaX
-Hz_components[ee,:] = hzc/deltaX
-
-self.X[ee,0] -= 2*deltaX
-self.refresh(idx)
-self.render()
-(hz, hzc) = self.renderer.jz(self)
-Hz[ee,0] -= hz/deltaX
-Hz_components[ee,:] -= hzc/deltaX
-self.X[ee,0] += deltaX
-
-Hz[ee,0] = Hz[ee,0]/2
-Hz_components[ee,:] = Hz_components[ee,:]/2
-

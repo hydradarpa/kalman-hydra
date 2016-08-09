@@ -270,7 +270,7 @@ class KFState:
 		self.Q = Q 
 
 		self.labels_hess = -1*np.ones((len(self.tri), len(self.E_hessian)))
-		print self.E_hessian 
+		#print self.E_hessian 
 		for k,e in enumerate(self.E_hessian):
 			label = -1*np.ones(len(self.tri))
 			#For each triangle, find it any of its vertices are mentioned in e,
@@ -278,7 +278,7 @@ class KFState:
 			if len(e.shape) < 2:
 				e = np.reshape(e, (-1,2))
 			for i, nodes in enumerate(e):
-				print nodes 
+				#print nodes 
 				n1, n2 = nodes 
 				for j, t in enumerate(self.tri):
 					if n1 in t or n2 in t:
@@ -286,7 +286,7 @@ class KFState:
 			self.labels_hess[:,k] = label
 
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, self.labels, showtracking = True)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, self.labels, self.labels_hess, self.Q, showtracking = True)
 
 	def get_flow(self):
 		return self.renderer.get_flow()
@@ -294,8 +294,11 @@ class KFState:
 	def size(self):
 		return self.X.shape[0]
 
-	def refresh(self, multi_idx = -1):
-		self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx, self.labels)
+	def refresh(self, multi_idx = -1, hess = False):
+		if not hess:
+			self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx)
+		else:
+			self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx, hess)
 
 	def render(self):
 		self.renderer.render()
@@ -303,7 +306,8 @@ class KFState:
 	def update(self, y_im, y_flow, y_m):
 		(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
 		if self.sparse:
-			HTH = self._hessian_sparse(y_im, y_flow, y_m)
+			#HTH = self._hessian_sparse(y_im, y_flow, y_m)
+			HTH = self._hessian_sparse_multi(y_im, y_flow, y_m)
 		else: 
 			HTH = self._hessian(y_im, y_flow, y_m)
 		return (Hz, HTH, Hz_components)
@@ -322,14 +326,14 @@ class KFState:
 			for i in range(2):
 				for j in range(2):
 					offset = i+2*self.N*j 
-					ee = offset + e 
+					ee = offset + 2*e 
 					self.X[ee,0] += deltaX
 					self.refresh(idx)
 					self.render()
 					(hz, hzc) = self.renderer.jz(self)
 					Hz[ee,0] = hz/deltaX
 					Hz_components[ee,:] = hzc/deltaX
-		
+					
 					self.X[ee,0] -= 2*deltaX
 					self.refresh(idx)
 					self.render()
@@ -337,7 +341,7 @@ class KFState:
 					Hz[ee,0] -= hz/deltaX
 					Hz_components[ee,:] -= hzc/deltaX
 					self.X[ee,0] += deltaX
-		
+					
 					Hz[ee,0] = Hz[ee,0]/2
 					Hz_components[ee,:] = Hz_components[ee,:]/2
 
@@ -398,17 +402,27 @@ class KFState:
 		#Set reference image to unperturbed images
 		self.renderer.initjacobian(y_im, y_flow, y_m)
 
+		for idx, e in enumerate(self.E_hessian):
+			ee = e.copy()
+			eeidx = self.E_hessian_idx[idx]
+			for i1 in range(2):
+				for j1 in range(2):
+					for i2 in range(2):
+						for j2 in range(2):
+							offset = i1+2*self.N*j1 
+							offset = i2+2*self.N*j2 
+							ee[:,0] = 2*e[:,0] + offset1 
+							ee[:,1] = 2*e[:,1] + offset2 
+							(h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+							h = h[h_hist > 0]
+							qidx = self.Q[h_hist > 0]
+							for idx2 in range(len(qidx)):
+								q = qidx[idx2]
+								q1 = 2*q[0]+i1+2*self.N*j1
+								q2 = 2*q[1]+i2+2*self.N*j2
+								HTH[q1,q2] = h[idx2]/deltaX/deltaX
+								HTH[q2,q1] = HTH[q1,q2]
 
-
-		for i in range(self.size()):
-			for j in range(i, self.size()):
-				if self.J[i,j] == 1:
-					hij = self.renderer.j(self, deltaX, i, j)
-				else:
-					hij = 0.
-				HTH[i,j] = hij/deltaX/deltaX
-				#Fill in the other triangle
-				HTH[j,i] = HTH[i,j]
 		self.refresh() 
 		self.render()
 		return HTH
