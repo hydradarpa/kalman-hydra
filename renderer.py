@@ -195,8 +195,9 @@ def frag_shader_lines(I):
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, labels, showtracking = False, force = None, multi = True):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, labels, labels_hess, Q, showtracking = False, force = None, multi = True):
 
+		self.Q = Q
 		self.cuda = cuda
 		self.showtracking = showtracking 
 		self.force = force
@@ -210,7 +211,7 @@ class Renderer(app.Canvas):
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		size = (nx, nx)
 		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
-		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx, labels)
+		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx, labels, labels_hess)
 		self.l = self.l0.copy()
 
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -282,7 +283,7 @@ class Renderer(app.Canvas):
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
 		d=self.context.shared._parser.get_object(self._rendertex4.id)._handle
 		if multi:
-			self.cudagl = CUDAGL_multi(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda, self.n)
+			self.cudagl = CUDAGL_multi(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda, self.n, len(self.Q))
 		else:
 			self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
 
@@ -431,7 +432,7 @@ class Renderer(app.Canvas):
 		e_m = np.sum(np.multiply(255*y_m-m[:,:,0], 255*y_m-m[:,:,0]))
 		return e_im, e_fx, e_fy, e_m, fx, fy
 
-	def update_vertex_buffer(self, vertices, velocities, multi_idx, labels):
+	def update_vertex_buffer(self, vertices, velocities, multi_idx, hess = False):
 		verdata = np.zeros((self.nP,3))
 		veldata = np.zeros((self.nP,3))
 		#rescale
@@ -478,11 +479,14 @@ class Renderer(app.Canvas):
 			#Update uniform data
 			self._program_lines['u_colors'] = self.linecolors
 		#self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,multi_idx])
-		self._updatemaskpalette(np.squeeze(self.facecolors[:,:,multi_idx]))
+		if not hess:
+			self._updatemaskpalette(np.squeeze(self.facecolors[:,:,multi_idx]))
+		else:
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,multi_idx]))
 
 
 	#Load mesh data
-	def loadMesh(self, vertices, velocities, triangles, nx, labels):
+	def loadMesh(self, vertices, velocities, triangles, nx, labels, labels_hess):
 		# Create vetices and texture coords, combined in one array for high performance
 		self.nP = vertices.shape[0]
 		self.nT = triangles.shape[0]
@@ -540,6 +544,13 @@ class Renderer(app.Canvas):
 		for i in range(labels.shape[1]):
 			for idx,t in enumerate(self.tri):
 				self.randfacecolors[idx, :, i] = 255*randcolors[labels[idx,i],:]
+
+		#Setup multiperturbation face colors
+		self.hessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		for i in range(labels_hess.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.hessfacecolors[idx, 1, i] = np.floor_divide(labels_hess[idx,i], 256)
+				self.hessfacecolors[idx, 2, i] = np.remainder(labels_hess[idx,i], 256)
 
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
@@ -610,6 +621,22 @@ class Renderer(app.Canvas):
 			#return self.cudagl.j(state, deltaX, i, j)
 		else:
 			return self.cudagl.j_CPU(state, deltaX, i, j)
+
+	def j_multi(self, state, deltaX, ee, labelidx, ee_idx):
+		if self.cuda:
+			#print 'j(). Using GPU (CUDA)'
+			j_GPU = self.cudagl.j_multi(state, deltaX, ee, labelidx)
+			#j_CPU = self.cudagl.j_CPU(state, deltaX, ee)
+			#print 'GPU:', j_GPU, 'CPU:', j_CPU
+			return j_GPU
+		else:
+			h = np.zeros((len(self.Q), 1))
+			h_hist = np.zeros((len(self.Q), 1))
+			for idx, eidx in enumerate(ee_idx):
+				e = ee[idx]
+				h[eidx] = self.cudagl.j_CPU(state, deltaX, e[0], e[1]) 
+				h_hist[eidx] = 1
+			return (h, h_hist)
 
 class VideoStream:
 	def __init__(self, fn, threshold):
