@@ -66,15 +66,16 @@ ret_flow, flowframe = flowstream.read()
 kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 self = kf.state
 
+idx = 0
+e = self.E_hessian[0]
+
 HTH = np.zeros((self.size(),self.size()))
-self.refresh() 
+self.refresh(idx, hess = True) 
 self.render()
 #Set reference image to unperturbed images
 self.renderer.initjacobian(frame, flowframe, mask)
 
 #for idx, e in enumerate(self.E_hessian):
-idx = 0
-e = self.E_hessian[0]
 
 ee = e.copy()
 eeidx = self.E_hessian_idx[idx]
@@ -93,12 +94,12 @@ ee[:,0] = 2*e[:,0] + offset1
 ee[:,1] = 2*e[:,1] + offset2 
 (h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
 h = h[h_hist > 0]
-qidx = self.Q[h_hist > 0]
+qidx = self.Q[np.squeeze(np.array(h_hist)),:]
 for idx2 in range(len(qidx)):
 	q = qidx[idx2]
 	q1 = 2*q[0]+i1+2*self.N*j1
 	q2 = 2*q[1]+i2+2*self.N*j2
-	HTH[q1,q2] = h[idx2]/deltaX/deltaX
+	HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
 	HTH[q2,q1] = HTH[q1,q2]
 
 

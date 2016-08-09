@@ -397,14 +397,14 @@ class KFState:
 	def _jacobian_multi(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
-		self.refresh() 
-		self.render()
-		#Set reference image to unperturbed images
-		self.renderer.initjacobian(y_im, y_flow, y_m)
-		#Perturb groups of vertices
 
+		#Perturb groups of vertices
 		#This loop is ~32 renders, instead of ~280, for hydra1 synthetic mesh of 35 nodes
 		for idx, e in enumerate(self.E):
+			self.refresh(idx) 
+			self.render()
+			#Set reference image to unperturbed images
+			self.renderer.initjacobian(y_im, y_flow, y_m)
 			for i in range(2):
 				for j in range(2):
 					offset = i+2*self.N*j 
@@ -481,23 +481,25 @@ class KFState:
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
 	def _hessian_sparse_multi(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
-		self.refresh() 
-		self.render()
-		#Set reference image to unperturbed images
-		self.renderer.initjacobian(y_im, y_flow, y_m)
 
 		for idx, e in enumerate(self.E_hessian):
+			self.refresh(idx, hess = True) 
+			self.render()
+			#Set reference image to unperturbed images
+			self.renderer.initjacobian(y_im, y_flow, y_m)
 			ee = e.copy()
 			eeidx = self.E_hessian_idx[idx]
 			for i1 in range(2):
 				for j1 in range(2):
 					for i2 in range(2):
 						for j2 in range(2):
-							offset = i1+2*self.N*j1 
-							offset = i2+2*self.N*j2 
+							offset1 = i1+2*self.N*j1 
+							offset2 = i2+2*self.N*j2 
 							ee[:,0] = 2*e[:,0] + offset1 
 							ee[:,1] = 2*e[:,1] + offset2 
+							#Do the render
 							(h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+							#Unpack the answers into the hessian matrix
 							h = h[h_hist > 0]
 							qidx = self.Q[h_hist > 0]
 							for idx2 in range(len(qidx)):
