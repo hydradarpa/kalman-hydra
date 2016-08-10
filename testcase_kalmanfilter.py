@@ -7,6 +7,10 @@ from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph,\
 		MSKalmanFilter, IteratedMSKalmanFilter
 from renderer import VideoStream
 
+import cProfile
+import re
+cProfile.run('re.compile("foo|bar")')
+
 import pdb 
 import time 
 import cv2 
