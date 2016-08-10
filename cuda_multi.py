@@ -232,51 +232,11 @@ class CUDAGL_multi(CUDAGL):
 					//		printf("f = %d, fp = %d, fpp = %d. ", f, fp, fpp);
 					//}
 
-					//m * f + (!m && mp) * fp;
 			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
 
 			        if ((m || mp || mpp) && (face < (256*256-1))) {
 				        if (face > {{ num_q }})
 							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
-						
-						//if (face == 110) {
-						//	printf("--Found face 110. ");
-						//}
-						//if (face == 102) {
-						//	printf("--Found face 102. ");
-						//}
-						//if (face == 91) {
-						//	printf("--Found face 91. ");
-						//}
-						//if (face == 88) {
-						//	printf("Found face 88. ");
-						//}
-						//if (face == 73) {
-						//	printf("Found face 73. ");
-						//}
-						//if (face == 58) {
-						//	printf("Found face 58. ");
-						//} //0.,    3.,   13.,   20.,   29.,   53.,
-
-
-						//if (face == 0) {
-						//	printf("Found face 0. ");
-						//}
-						//if (face == 3) {
-						//	printf("--Found face 3. ");
-						//}
-						//if (face == 13) {
-						//	printf("--Found face 13. ");
-						//}
-						//if (face == 20) {
-						//	printf("Found face 20. ");
-						//}
-						//if (face == 29) {
-						//	printf("--Found face 29. ");
-						//}
-						//if (face == 53) {
-						//	printf("Found face 53. ");
-						//} //0.,    3.,   13.,   20.,   29.,   53.,
 
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
@@ -734,10 +694,10 @@ class CUDAGL_multi(CUDAGL):
 		bytesize = self.height*self.width
 
 		#Perturb first
-		state.X[ee[:,0],0] += deltaX
+		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
-		state.X[ee[:,0],0] -= deltaX
+		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] - deltaX)
 
 		#Load pixel buffers
 		pycuda_yp_tilde_pbo.unregister()
@@ -754,10 +714,10 @@ class CUDAGL_multi(CUDAGL):
 		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
 
 		#Perturb second
-		state.X[ee[:,1],0] += deltaX
+		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
-		state.X[ee[:,1],0] -= deltaX
+		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] - deltaX)
 
 		#Load pixel buffers
 		pycuda_ypp_tilde_pbo.unregister()
@@ -861,7 +821,7 @@ class CUDAGL_multi(CUDAGL):
 		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.len_Q))
 		partialsum_nz = np.reshape(partialsum_nz, (nBlocks,self.len_Q))
 
-		print partialsum.shape 
+		#print partialsum.shape 
 
 		sum_gpu = np.matrix(np.sum(partialsum,0)).T
 		sum_fx_gpu = np.matrix(np.sum(partialsum_fx,0)).T
@@ -871,7 +831,7 @@ class CUDAGL_multi(CUDAGL):
 		sum_nz_gpu = np.matrix(np.sum(partialsum_nz,0)).T
 		j_nz = sum_nz_gpu > 0
 
-		print sum_m_gpu.shape 
+		#print sum_m_gpu.shape 
 
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
