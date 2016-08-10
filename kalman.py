@@ -402,7 +402,7 @@ class KFState:
 			self.renderer.initjacobian(y_im, y_flow, y_m)
 			ee = e.copy()
 			eeidx = self.E_hessian_idx[idx]
-			print e 
+			#print e 
 			for i1 in range(2):
 				for j1 in range(2):
 					for i2 in range(2):

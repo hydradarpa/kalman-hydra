@@ -521,14 +521,14 @@ class CUDAGL_multi(CUDAGL):
 		partialsum_fy = np.reshape(partialsum_fy, (nBlocks,self.n))
 		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.n))
 
-		print partialsum.shape 
+		#print partialsum.shape 
 
 		sum_gpu = np.matrix(np.sum(partialsum,0)).T
 		sum_fx_gpu = np.matrix(np.sum(partialsum_fx,0)).T
 		sum_fy_gpu = np.matrix(np.sum(partialsum_fy,0)).T
 		sum_m_gpu = np.matrix(np.sum(partialsum_m,0)).T
 
-		print sum_m_gpu.shape 
+		#print sum_m_gpu.shape 
 
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
