@@ -143,11 +143,11 @@ class CUDAGL_multi(CUDAGL):
 			        face = m * f + (!m && mp) * fp;
 
 			        if ((m || mp) && (face < (256*256-1))) {
-				        if (face > {{ num_vertices }})
-							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
-						if (face == 34) {
-							printf("Found face 34. ");
-						}
+				        //if (face > {{ num_vertices }})
+						//	printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+						//if (face == 34) {
+						//	printf("Found face 34. ");
+						//}
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
 						atomicAdd(&gmem_fy[face], ps_fy);
@@ -235,8 +235,8 @@ class CUDAGL_multi(CUDAGL):
 			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
 
 			        if ((m || mp || mpp) && (face < (256*256-1))) {
-				        if (face > {{ num_q }})
-							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+				        //if (face > {{ num_q }})
+						//	printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
 
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
