@@ -167,38 +167,31 @@ class KFState:
 
 		#print self.labels 
 
-		#Compute independent pairs of dependent pairs of vertices
-		Q = []
-		for i in range(self.N):
-			for j in range(i+1,self.N):
-				if self.Jv[i,j]:
-					Q = Q + [[i,j]] 
-
-		while len(Q) > 0:
-			#print 'Outer loop'
-			P = []
-			e = []
-			while len(Q) > 0:
-				#print '  * Inner loop'
-				#Current vertices
-				q = Q[0]
-
-				#Things connected to current vertex
-				p = np.nonzero(Jv[q,:])[0]
-				p = np.setdiff1d(p, q)
-
-				#Add current vertex
-				e += [q]
-
-				#Add things connected to current vertex to the 'do later' list
-				P = np.intersect1d(np.union1d(P, p), A)
-
-				A = np.setdiff1d(A, q)
-				#Remove q and p from Q
-				Q = np.setdiff1d(Q, p)
-				Q = np.setdiff1d(Q, q)
-			Q = P
-			self.E += [e]			
+		#while len(Q) > 0:
+		#	#print 'Outer loop'
+		#	P = []
+		#	e = []
+		#	while len(Q) > 0:
+		#		#print '  * Inner loop'
+		#		#Current vertices
+		#		q = Q[0]
+		#
+		#		#Things connected to current vertex
+		#		p = np.nonzero(Jv[q,:])[0]
+		#		p = np.setdiff1d(p, q)
+		#
+		#		#Add current vertex
+		#		e += [q]
+		#
+		#		#Add things connected to current vertex to the 'do later' list
+		#		P = np.intersect1d(np.union1d(P, p), A)
+		#
+		#		A = np.setdiff1d(A, q)
+		#		#Remove q and p from Q
+		#		Q = np.setdiff1d(Q, p)
+		#		Q = np.setdiff1d(Q, q)
+		#	Q = P
+		#	self.E += [e]			
 
 		########################################################################
 		#Compute independent pairs of dependent pairs of vertices###############
@@ -241,7 +234,7 @@ class KFState:
 				#Add current vertex
 				e = union2d(e, q)
 				eidx = np.union1d(eidx,[qidx])
-		
+
 				#Add things connected to current vertex to the 'do later' list
 				P = intersect2d(union2d(P, p_all), A)
 				Pidx = np.intersect1d(np.union1d(Pidx, p_all_idx), Aidx)
@@ -254,6 +247,8 @@ class KFState:
 				Qidx = np.setdiff1d(Qidx, qidx)
 			Q = P
 			Qidx = Pidx
+			if len(e.shape) == 1:
+				e = np.reshape(e, (-1,2))
 			E_hessian += [e]	
 			E_hessian_idx += [eidx]	
 		
@@ -326,21 +321,23 @@ class KFState:
 			for i in range(2):
 				for j in range(2):
 					offset = i+2*self.N*j 
-					ee = offset + 2*e 
-					self.X[ee,0] += deltaX
+					#print e 
+					ee = offset + 2*np.array(e, dtype=np.int)
+					#print ee 
+					self.X[ee,0] = np.squeeze(self.X[ee, 0] + deltaX)
 					self.refresh(idx)
 					self.render()
 					(hz, hzc) = self.renderer.jz(self)
-					Hz[ee,0] = hz/deltaX
-					Hz_components[ee,:] = hzc/deltaX
+					Hz[ee,0] = np.squeeze(hz[e]/deltaX)
+					Hz_components[ee,:] = hzc[e,:]/deltaX
 					
-					self.X[ee,0] -= 2*deltaX
+					self.X[ee,0] = np.squeeze(self.X[ee,0] - 2*deltaX)
 					self.refresh(idx)
 					self.render()
 					(hz, hzc) = self.renderer.jz(self)
-					Hz[ee,0] -= hz/deltaX
-					Hz_components[ee,:] -= hzc/deltaX
-					self.X[ee,0] += deltaX
+					Hz[ee,0] = np.squeeze(Hz[ee,0] - hz[e].T/deltaX)
+					Hz_components[ee,:] -= hzc[e,:]/deltaX
+					self.X[ee,0] = np.squeeze(self.X[ee,0] + deltaX)
 					
 					Hz[ee,0] = Hz[ee,0]/2
 					Hz_components[ee,:] = Hz_components[ee,:]/2
@@ -405,6 +402,7 @@ class KFState:
 			self.renderer.initjacobian(y_im, y_flow, y_m)
 			ee = e.copy()
 			eeidx = self.E_hessian_idx[idx]
+			print e 
 			for i1 in range(2):
 				for j1 in range(2):
 					for i2 in range(2):
@@ -417,12 +415,12 @@ class KFState:
 							(h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
 							#Unpack the answers into the hessian matrix
 							h = h[h_hist > 0]
-							qidx = self.Q[h_hist > 0]
+							qidx = self.Q[np.squeeze(np.array(h_hist)),:]
 							for idx2 in range(len(qidx)):
 								q = qidx[idx2]
 								q1 = 2*q[0]+i1+2*self.N*j1
 								q2 = 2*q[1]+i2+2*self.N*j2
-								HTH[q1,q2] = h[idx2]/deltaX/deltaX
+								HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
 								HTH[q2,q1] = HTH[q1,q2]
 
 		self.refresh() 
