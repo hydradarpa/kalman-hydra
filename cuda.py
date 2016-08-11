@@ -490,6 +490,7 @@ class CUDAGL:
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
 
 	def _destroy_PBOs(self):
+		print 'Deleting PBOs'
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
 		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\

@@ -4,7 +4,7 @@ from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
 from synth import test_data, test_data_texture, test_data_image
 from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph,\
-		MSKalmanFilter, IteratedMSKalmanFilter
+		MSKalmanFilter, IteratedMSKalmanFilter, stats
 from renderer import VideoStream
 
 import pdb 
@@ -56,7 +56,7 @@ nI = 10
 count = 0
 
 #for i in range(nF):
-for i in range(5):
+for i in range(1):
 	count += 1
 	print 'Frame %d' % count 
 	frame = video[:,:,i]

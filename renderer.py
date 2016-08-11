@@ -282,6 +282,11 @@ class Renderer(app.Canvas):
 		#self._backend._vispy_set_size(*size)
 		#print self.size
 
+	def __del__(self):
+		print 'Deleting renderer'
+		self.close()
+		del self.cudagl 
+
 	def on_resize(self, event):
 		width, height = event.physical_size
 		#gloo.set_viewport(0, 0, width, height)

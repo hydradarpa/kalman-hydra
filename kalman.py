@@ -14,9 +14,71 @@ import pdb
 import sys
 from time import gmtime, strftime
 from timeit import timeit 
+import time 
 from numpy.linalg import norm, inv 
 
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
+
+class Statistics:
+	def __init__(self):
+		self.niter = 0
+		self.meshpts = 0
+		self.gridsize = 0
+		self.jacobianpartitions = 0
+		self.hessianpartitions = 0
+		self.nzj = 0
+		#number and timing of renders and updates
+		#stored as mutable lists for scoping purposes in decorator...
+		self.jacobianrenderstc = [0, 0]
+		self.hessianrenderstc = [0, 0]
+		self.renders = [0]
+		self.statepredtime = [0]
+		self.stateupdatetc = [0, 0]
+		self.hessinc = [0]
+		self.jacinc = [0]
+		self.hessincsparse = [0]
+
+	def reset(self):
+		self.__init__()
+
+#Decorator to count update times... uses time module so not as accurate
+def timer(runtimer):
+	def counter_wrapper(func):
+		def func_wrapper(*args, **kwargs):
+			st = time.time()
+			ret = func(*args, **kwargs)
+			et = time.time()
+			runtimer[0] += et - st 
+			return ret
+		return func_wrapper
+	return counter_wrapper
+
+def counter(ctr, inc):
+	def counter_wrapper(func):
+		def func_wrapper(*args, **kwargs):
+			st = time.time()
+			ret = func(*args, **kwargs)
+			et = time.time()
+			ctr[0] += inc[0]
+			return ret
+		return func_wrapper
+	return counter_wrapper
+
+def timer_counter(tc, inc):
+	def counter_wrapper(func):
+		def func_wrapper(*args, **kwargs):
+			st = time.time()
+			ret = func(*args, **kwargs)
+			et = time.time()
+			#print runtimer 
+			#print counter 
+			tc[0] += et - st 
+			tc[1] += inc[0]
+			return ret
+		return func_wrapper
+	return counter_wrapper
+
+stats = Statistics()
 
 class KFState:
 	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True):
@@ -113,6 +175,22 @@ class KFState:
 		#Renderer
 		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
 
+		#stats = Statistics()
+		stats.meshpts = self.N
+		stats.gridsize = distmesh.h0 
+		stats.nzj = np.sum(self.J)/2+(self.N*4)/2
+		stats.hessinc[0] = 2+(stats.meshpts*4)*(stats.meshpts*4)
+		stats.jacinc[0] = 2+stats.meshpts*4*2
+		stats.hessincsparse[0] = 2+(stats.nzj)*2
+		try:
+			stats.jacobianpartitions = len(self.E)
+			stats.hessianpartitions = len(self.E_hessian)
+		except AttributeError:
+			pass 
+
+	def __del__(self):
+		self.renderer.__del__()
+
 	def get_flow(self):
 		return self.renderer.get_flow()
 
@@ -122,9 +200,12 @@ class KFState:
 	def refresh(self):
 		self.renderer.update_vertex_buffer(self.vertices(), self.velocities())
 
+	@counter(stats.renders, [1])
 	def render(self):
 		self.renderer.render()
 
+	#@timer_counter(stats.stateupdatecount, stats.stateupdatetime)
+	@timer_counter(stats.stateupdatetc, [1])
 	def update(self, y_im, y_flow, y_m):
 		(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
 		if self.sparse:
@@ -133,6 +214,7 @@ class KFState:
 			HTH = self._hessian(y_im, y_flow, y_m)
 		return (Hz, HTH, Hz_components)
 
+	@timer_counter(stats.jacobianrenderstc, stats.jacinc)
 	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
@@ -162,6 +244,7 @@ class KFState:
 		self.render()
 		return (Hz, Hz_components)
 
+	@timer_counter(stats.hessianrenderstc, stats.hessinc)
 	def _hessian(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
@@ -179,6 +262,7 @@ class KFState:
 		self.render()
 		return HTH
 
+	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
 	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
@@ -230,6 +314,9 @@ class KalmanFilter:
 		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.predtime = 0
 		self.updatetime = 0
+
+	def __del__(self):
+		self.state.__del__()
 
 	def plotforces(self, overlay, imageoutput):
 		sc = 2
@@ -293,6 +380,7 @@ class KalmanFilter:
 			self.plotforces(overlay, imageoutput)
 		return self.error(y_im, y_flow, y_m)
 
+	@timer(stats.statepredtime)
 	def predict(self):
 		print '-- predicting'
 		#import rpdb2 
@@ -402,6 +490,7 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		self.force = lambda l1, l2: -self.kappa*(l1-l2)
 		self.state.setforce(self.force)
 
+	@timer(stats.statepredtime)
 	def predict(self):
 		print '-- predicting'
 		X = self.state.X 
@@ -522,6 +611,7 @@ class MSKalmanFilter(KalmanFilter):
 		#Spring stiffness
 		self.kappa = 1
 
+	@timer(stats.statepredtime)
 	def predict(self):
 		print '-- predicting'
 		X = self.state.X 
