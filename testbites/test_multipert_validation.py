@@ -96,4 +96,4 @@ self = kf.state
 
 (hz, hzc) = self._jacobian(frame, flowframe, mask, deltaX = 2)
 #(hz_multi, hzc_multi) = self._jacobian_multi(frame, flowframe, mask, deltaX = 2)
-np.save('./test_multipert_validation_single.npz', hz = hz, hzc = hzc)
+np.savez('./test_multipert_validation_single.npz', hz = hz, hzc = hzc)
