@@ -40,7 +40,7 @@ for gridsize in gridsizes:
 	kf.state.render()
 	
 	count = 0
-	for i in range(1):
+	for i in range(5):
 		count += 1
 		print 'Frame %d' % count 
 		frame = video[:,:,i]
@@ -49,5 +49,5 @@ for gridsize in gridsizes:
 		time.sleep(0.3)
 		kf.compute(frame, flowframe, mask)
 
-	kf.__del__()
-	stats.reset()
+	#kf.__del__()
+	#stats.reset()
