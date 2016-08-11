@@ -97,3 +97,13 @@ self = kf.state
 (hz, hzc) = self._jacobian(frame, flowframe, mask, deltaX = 2)
 #(hz_multi, hzc_multi) = self._jacobian_multi(frame, flowframe, mask, deltaX = 2)
 np.savez('./test_multipert_validation_single.npz', hz = hz, hzc = hzc)
+#a = np.load('./test_multipert_validation_single.npz')
+
+#Shows five errors of around 2%, all others are small enough to be around round-off
+#All errors occur in the mask component. Errors all of size 250 - might indicate something
+
+#(HTH_multi) = self._hessian_sparse_multi(frame, flowframe, mask, deltaX = 2)
+(HTH) = self._hessian_sparse(frame, flowframe, mask, deltaX = 2)
+np.savez('./test_multipert_validation_single_HTH.npz', HTH = HTH)
+#b = np.load('./test_multipert_validation_single_HTH.npz')
+
