@@ -247,6 +247,7 @@ class KFState:
 	@timer_counter(stats.hessianrenderstc, stats.hessinc)
 	def _hessian(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
+		HTHc = np.zeros((4,self.size(),self.size()))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
@@ -254,10 +255,19 @@ class KFState:
 		#Very inefficient... for now 
 		for i in range(self.size()):
 			for j in range(i, self.size()):
-				hij = self.renderer.j(self, deltaX, i, j)
+				(hij, hijc) = self.renderer.j(self, deltaX, i, j)
 				HTH[i,j] = hij/deltaX/deltaX
 				#Fill in the other triangle
 				HTH[j,i] = HTH[i,j]
+				HTHc[0,i,j] = hijc[0]/deltaX/deltaX
+				HTHc[0,j,i] = HTHc[0,i,j]
+				HTHc[1,i,j] = hijc[1]/deltaX/deltaX
+				HTHc[1,j,i] = HTHc[1,i,j]
+				HTHc[2,i,j] = hijc[2]/deltaX/deltaX
+				HTHc[2,j,i] = HTHc[2,i,j]
+				HTHc[3,i,j] = hijc[3]/deltaX/deltaX
+				HTHc[3,j,i] = HTHc[3,i,j]
+
 		self.refresh() 
 		self.render()
 		return HTH
@@ -265,6 +275,7 @@ class KFState:
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
 	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
+		HTHc = np.zeros((4,self.size(),self.size()))
 		self.refresh() 
 		self.render()
 		#Set reference image to unperturbed images
@@ -278,15 +289,25 @@ class KFState:
 		for i in range(self.size()):
 			for j in range(i, self.size()):
 				if self.J[i,j] == 1:
-					hij = self.renderer.j(self, deltaX, i, j)
+					hij, hijc = self.renderer.j(self, deltaX, i, j)
 				else:
 					hij = 0.
+					hijc = np.zeros((4,1))
 				HTH[i,j] = hij/deltaX/deltaX
 				#Fill in the other triangle
 				HTH[j,i] = HTH[i,j]
+				HTHc[0,i,j] = hijc[0]/deltaX/deltaX
+				HTHc[0,j,i] = HTHc[0,i,j]
+				HTHc[1,i,j] = hijc[1]/deltaX/deltaX
+				HTHc[1,j,i] = HTHc[1,i,j]
+				HTHc[2,i,j] = hijc[2]/deltaX/deltaX
+				HTHc[2,j,i] = HTHc[2,i,j]
+				HTHc[3,i,j] = hijc[3]/deltaX/deltaX
+				HTHc[3,j,i] = HTHc[3,i,j]
+
 		self.refresh() 
 		self.render()
-		return HTH
+		return HTH, HTHc
 
 	def vertices(self):
 		return self.X[0:(2*self.N)].reshape((-1,2))

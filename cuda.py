@@ -956,7 +956,8 @@ class CUDAGL:
 		scale = 1;
 		#print 'j (GPU) components'
 		#print sum_gpu, sum_fx_gpu/scale/scale, sum_fy_gpu/scale/scale
-		return sum_gpu+sum_fx_gpu/scale/scale+sum_fy_gpu/scale/scale+sum_m_gpu
+		jc = np.array([sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu])
+		return (sum_gpu+sum_fx_gpu/scale/scale+sum_fy_gpu/scale/scale+sum_m_gpu, jc)
 
 	############################################################################
 	#CPU code###################################################################
@@ -1045,6 +1046,7 @@ class CUDAGL:
 		#print 'No. non zero components'
 		#print 'x:', np.mean(np.abs(hzx_t))
 		#print 'y:', np.mean(np.abs(hzy_t))
-		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)+np.sum(hzm)
+		jc = np.array([np.sum(hz),np.sum(hzx),np.sum(hzy),np.sum(hzm)])
+		return (np.sum(hz)+np.sum(hzx)+np.sum(hzy)+np.sum(hzm), jc)
 
 		#(yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])

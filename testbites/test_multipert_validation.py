@@ -103,7 +103,7 @@ np.savez('./test_multipert_validation_single.npz', hz = hz, hzc = hzc)
 #All errors occur in the mask component. Errors all of size 250 - might indicate something
 
 #(HTH_multi) = self._hessian_sparse_multi(frame, flowframe, mask, deltaX = 2)
-(HTH) = self._hessian_sparse(frame, flowframe, mask, deltaX = 2)
-np.savez('./test_multipert_validation_single_HTH.npz', HTH = HTH)
+(HTH, HTHc) = self._hessian_sparse(frame, flowframe, mask, deltaX = 2)
+np.savez('./test_multipert_validation_single_HTH.npz', HTH = HTH, HTHc = HTHc)
 #b = np.load('./test_multipert_validation_single_HTH.npz')
 
