@@ -62,7 +62,7 @@ nI = 10
 count = 0
 
 #for i in range(nF):
-for i in range(1):
+for i in range(5):
 	count += 1
 	print 'Frame %d' % count 
 	frame = video[:,:,i]
@@ -70,7 +70,7 @@ for i in range(1):
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
 
-	#kf._newton()
+	#kf._newton
 	#J = kf._jacobian()
 
 	#(Hz, HTH, Hz_components) = kf.state.update(frame, flowframe, mask)

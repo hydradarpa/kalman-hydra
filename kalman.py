@@ -175,7 +175,9 @@ class KFState:
 		self.l0 = self.lengths()
 		self.L = distmesh.L 
 
-		#Compute partitions for multiperturbation rendering
+		########################################################################
+		#Compute partitions for jacobian multi-rendering########################
+		########################################################################
 		self.E = []
 		self.labels = []
 		Q = np.arange(self.N)
@@ -289,7 +291,9 @@ class KFState:
 				#All pairs that contain these vertices
 				p_all1 = np.array([i in p for i in Q[:,0]])
 				p_all2 = np.array([i in p for i in Q[:,1]])
-				p_all_idx = p_all1 + p_all2 
+				p_self1 = np.all(Q == [q[0],q[0]],1)
+				p_self2 = np.all(Q == [q[1],q[1]],1)
+				p_all_idx = p_all1 + p_all2 + p_self1 + p_self2
 				p_all = Q[p_all_idx,:]
 				p_all_idx = Qidx[p_all_idx]
 		
@@ -330,7 +334,7 @@ class KFState:
 		#print self.E_hessian 
 		for k,e in enumerate(self.E_hessian):
 			label = -1*np.ones(len(self.tri))
-			#For each triangle, find it any of its vertices are mentioned in e,
+			#For each triangle, find if any of its vertices are mentioned in e,
 			#give it a color...
 			if len(e.shape) < 2:
 				e = np.reshape(e, (-1,2))
@@ -338,7 +342,7 @@ class KFState:
 				#print nodes 
 				n1, n2 = nodes 
 				for j, t in enumerate(self.tri):
-					if n1 in t or n2 in t:
+					if (n1 in t) or (n2 in t):
 						label[j] = E_hessian_idx[k][i]
 			self.labels_hess[:,k] = label
 

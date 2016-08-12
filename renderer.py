@@ -250,6 +250,7 @@ class Renderer(app.Canvas):
 		self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
 		self._program_mask.bind(self._vbo)
 
+
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
 		self._rendertex1 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
@@ -336,7 +337,9 @@ class Renderer(app.Canvas):
 			self._program_flow.draw('triangles', self.indices_buffer)
 		elif self.state == 'mask':
 			self._program_mask.bind(self._vbo)
-			self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			#self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			#self._updatemaskpalette(np.squeeze(self.randhessfacecolors[:,:,1]))
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 			#print self._program_mask['u_colors']#self.randfacecolors[:,:,0]
 			self._program_mask.draw('triangles', self.indices_buffer)			
 		else:
@@ -388,12 +391,14 @@ class Renderer(app.Canvas):
 			return None
 		else:
 			oldstate = self.state
-			self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			#self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 			#change render mode, rerender, and save
 			#for state in ['flow', 'raw', 'overlay', 'texture']:
 			for state in ['raw', 'overlay', 'texture', 'mask']:
 				print 'saving', state
 				self.state = state
+				self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 				self.draw(None)
 				pixels = gloo.read_pixels()
 				pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
@@ -551,6 +556,14 @@ class Renderer(app.Canvas):
 			for idx,t in enumerate(self.tri):
 				self.hessfacecolors[idx, 1, i] = np.floor_divide(labels_hess[idx,i], 256)
 				self.hessfacecolors[idx, 2, i] = np.remainder(labels_hess[idx,i], 256)
+
+		#Setup multiperturbation face colors
+		randcolors = np.random.rand(np.max(labels_hess)+1, 3)
+		self.randhessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		for i in range(labels_hess.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.randhessfacecolors[idx, :, i] = 255*randcolors[labels_hess[idx,i],:]
+
 
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)

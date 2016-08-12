@@ -267,7 +267,7 @@ E_hessian = []
 E_hessian_idx = []
 Q = []
 for i in range(N):
-	for j in range(i+1,N):
+	for j in range(i,N):
 		if Jv[i,j]:
 			Q = Q + [[i,j]]
 Q = np.array(Q)
@@ -286,15 +286,17 @@ while len(Q) > 0:
 		#Current vertices
 		q = Q[0]
 		qidx = Qidx[0]
-		#All things connected to current vertex
+		#All vertices connected to current vertex
 		p1 = np.nonzero(Jv[q[0],:])[0]
 		p2 = np.nonzero(Jv[q[1],:])[0]
 		p = np.union1d(p1,p2)
 		p = np.setdiff1d(p, q)
-		#All pairs that contain these vertices
+		#All pairs that contain these vertices are added to the 'later' list
 		p_all1 = np.array([i in p for i in Q[:,0]])
 		p_all2 = np.array([i in p for i in Q[:,1]])
-		p_all_idx = p_all1 + p_all2 
+		p_self1 = np.all(Q == [q[0],q[0]],1)
+		p_self2 = np.all(Q == [q[1],q[1]],1)
+		p_all_idx = p_all1 + p_all2 + p_self1 + p_self2
 		p_all = Q[p_all_idx,:]
 		p_all_idx = Qidx[p_all_idx]
 
