@@ -835,5 +835,5 @@ class CUDAGL_multi(CUDAGL):
 
 		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
 		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
-		#jzc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
-		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, j_nz)
+		jc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
+		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, j_nz, jc)

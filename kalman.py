@@ -478,6 +478,7 @@ class KFState:
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
 	def _hessian_sparse_multi(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
+		HTH_c = np.zeros((4, self.size(), self.size()))
 
 		for idx, e in enumerate(self.E_hessian):
 			self.refresh(idx, hess = True) 
@@ -496,7 +497,7 @@ class KFState:
 							ee[:,0] = 2*e[:,0] + offset1 
 							ee[:,1] = 2*e[:,1] + offset2 
 							#Do the render
-							(h, h_hist) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+							(h, h_hist, hcomp) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
 							#Unpack the answers into the hessian matrix
 							h = h[h_hist > 0]
 							qidx = self.Q[np.squeeze(np.array(h_hist)),:]
