@@ -387,7 +387,10 @@ class KFState:
 	#@timer_counter(stats.stateupdatecount, stats.stateupdatetime)
 	@timer_counter(stats.stateupdatetc, [1])
 	def update(self, y_im, y_flow, y_m):
-		(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
+		if self.multi:
+			(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
+		else:
+			(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
 		if self.sparse:
 			if self.multi:
 				HTH = self._hessian_sparse_multi(y_im, y_flow, y_m)
@@ -418,14 +421,14 @@ class KFState:
 					self.X[ee,0] = np.squeeze(self.X[ee, 0] + deltaX)
 					self.refresh(idx)
 					self.render()
-					(hz, hzc) = self.renderer.jz(self)
+					(hz, hzc) = self.renderer.jz_multi(self)
 					Hz[ee,0] = np.squeeze(hz[e]/deltaX)
 					Hz_components[ee,:] = hzc[e,:]/deltaX
 					
 					self.X[ee,0] = np.squeeze(self.X[ee,0] - 2*deltaX)
 					self.refresh(idx)
 					self.render()
-					(hz, hzc) = self.renderer.jz(self)
+					(hz, hzc) = self.renderer.jz_multi(self)
 					Hz[ee,0] = np.squeeze(Hz[ee,0] - hz[e].T/deltaX)
 					Hz_components[ee,:] -= hzc[e,:]/deltaX
 					self.X[ee,0] = np.squeeze(self.X[ee,0] + deltaX)

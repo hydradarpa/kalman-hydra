@@ -623,6 +623,21 @@ class Renderer(app.Canvas):
 			#print 'Using CPU'
 			return self.cudagl.jz_CPU(state)
 
+	def jz_multi(self, state):
+		#Compare both and see if they're always off, or just sometimes...
+
+		if self.cuda:
+			#print 'jz(). Using GPU (CUDA)'
+			jz_GPU = self.cudagl.jz_multi(state)
+			#jz_CPU = self.cudagl.jz_CPU()
+			#print 'GPU:', jz_GPU, 'CPU:', jz_CPU
+			return jz_GPU
+
+			#return self.cudagl.jz()
+		else:
+			#print 'Using CPU'
+			return self.cudagl.jz_CPU(state)
+
 	def j(self, state, deltaX, i, j):
 		if self.cuda:
 			#print 'j(). Using GPU (CUDA)'
