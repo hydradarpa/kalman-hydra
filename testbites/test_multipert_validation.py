@@ -107,48 +107,48 @@ a = np.load('./test_multipert_validation_single.npz')
 ##################Hessian computation###########################################
 ################################################################################
 
-#HTH = np.zeros((self.size(),self.size()))
-#HTH_c = np.zeros((4, self.size(), self.size()))
-#deltaX = 2
-#y_im = frame
-#y_flow = flowframe 
-#y_m = mask 
-#for idx, e in enumerate(self.E_hessian):
-#	self.refresh(idx, hess = True) 
-#	self.render()
-#	#Set reference image to unperturbed images
-#	self.renderer.initjacobian(y_im, y_flow, y_m)
-#	ee = e.copy()
-#	eeidx = self.E_hessian_idx[idx]
-#	#print e 
-#	for i1 in range(2):
-#		for j1 in range(2):
-#			for i2 in range(2):
-#				for j2 in range(2):
-#					offset1 = i1+2*self.N*j1 
-#					offset2 = i2+2*self.N*j2 
-#					ee[:,0] = 2*e[:,0] + offset1 
-#					ee[:,1] = 2*e[:,1] + offset2 
-#					#Do the render
-#					(h, h_hist, hcomp) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
-#					#Unpack the answers into the hessian matrix
-#					h = h[h_hist > 0]
-#					hcomp = hcomp[np.squeeze(np.array(h_hist > 0)),:]
-#					qidx = self.Q[np.squeeze(np.array(h_hist)),:]
-#					for idx2 in range(len(qidx)):
-#						q = qidx[idx2]
-#						q1 = 2*q[0]+i1+2*self.N*j1
-#						q2 = 2*q[1]+i2+2*self.N*j2
-#						HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
-#						HTH[q2,q1] = HTH[q1,q2]
-#						HTH_c[0,q1,q2] = hcomp[idx2,0]/deltaX/deltaX
-#						HTH_c[0,q2,q1] = HTH_c[0,q1,q2]
-#						HTH_c[1,q1,q2] = hcomp[idx2,1]/deltaX/deltaX
-#						HTH_c[1,q2,q1] = HTH_c[1,q1,q2]
-#						HTH_c[2,q1,q2] = hcomp[idx2,2]/deltaX/deltaX
-#						HTH_c[2,q2,q1] = HTH_c[2,q1,q2]
-#						HTH_c[3,q1,q2] = hcomp[idx2,3]/deltaX/deltaX
-#						HTH_c[3,q2,q1] = HTH_c[3,q1,q2]
+HTH = np.zeros((self.size(),self.size()))
+HTH_c = np.zeros((4, self.size(), self.size()))
+deltaX = 2
+y_im = frame
+y_flow = flowframe 
+y_m = mask 
+for idx, e in enumerate(self.E_hessian):
+	self.refresh(idx, hess = True) 
+	self.render()
+	#Set reference image to unperturbed images
+	self.renderer.initjacobian(y_im, y_flow, y_m)
+	ee = e.copy()
+	eeidx = self.E_hessian_idx[idx]
+	#print e 
+	for i1 in range(2):
+		for j1 in range(2):
+			for i2 in range(2):
+				for j2 in range(2):
+					offset1 = i1+2*self.N*j1 
+					offset2 = i2+2*self.N*j2 
+					ee[:,0] = 2*e[:,0] + offset1 
+					ee[:,1] = 2*e[:,1] + offset2 
+					#Do the render
+					(h, h_hist, hcomp) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+					#Unpack the answers into the hessian matrix
+					h = h[h_hist > 0]
+					hcomp = hcomp[np.squeeze(np.array(h_hist > 0)),:]
+					qidx = self.Q[np.squeeze(np.array(h_hist)),:]
+					for idx2 in range(len(qidx)):
+						q = qidx[idx2]
+						q1 = 2*q[0]+i1+2*self.N*j1
+						q2 = 2*q[1]+i2+2*self.N*j2
+						HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
+						HTH[q2,q1] = HTH[q1,q2]
+						HTH_c[0,q1,q2] = hcomp[idx2,0]/deltaX/deltaX
+						HTH_c[0,q2,q1] = HTH_c[0,q1,q2]
+						HTH_c[1,q1,q2] = hcomp[idx2,1]/deltaX/deltaX
+						HTH_c[1,q2,q1] = HTH_c[1,q1,q2]
+						HTH_c[2,q1,q2] = hcomp[idx2,2]/deltaX/deltaX
+						HTH_c[2,q2,q1] = HTH_c[2,q1,q2]
+						HTH_c[3,q1,q2] = hcomp[idx2,3]/deltaX/deltaX
+						HTH_c[3,q2,q1] = HTH_c[3,q1,q2]
 
 
 
@@ -163,7 +163,7 @@ HTH = b['HTH']
 
 #Number of missing entries in HTH_multi 
 np.sum((np.abs(HTH)>0.000001)&(np.abs(HTH_multi) < 0.000001))
-#=180 out of 1122 are missing
+#=0 out of 1122 are missing
 
 #Number of additional entries in HTH_multi
 np.sum((np.abs(HTH_multi)>0.000001)&(np.abs(HTH) < 0.000001))
@@ -175,7 +175,13 @@ np.sum((np.abs(HTH_multi)>0.000001)&(np.abs(HTH) < 0.000001))
 HTH_diff = HTH-HTH_multi 
 relHTHerr = 100*HTH_diff/HTH 
 concurHTHrelerr = relHTHerr[(np.abs(HTH)>0.000001)&(np.abs(HTH_multi) > 0.000001)]
-np.sum(np.abs(concurHTHrelerr)>2) #= 57 ... out of 942 are greater than 2% error
+np.sum(np.abs(concurHTHrelerr)>2) #= 4 ... out of 942 are greater than 2% error
+
+relHTHerr[relHTHerr > 1]
+np.transpose(np.nonzero(relHTHerr > 1))
+np.transpose(np.nonzero(relHTHerr > 1))
+HTH_diff[relHTHerr > 1]
+HTH_multi_c[:,relHTHerr > 1]
 
 #Which ones are missing?
 
@@ -184,6 +190,7 @@ np.sum(np.abs(concurHTHrelerr)>2) #= 57 ... out of 942 are greater than 2% error
 
 #Need to investigate the Q listing and the E_hessian matrix....
 np.transpose(np.nonzero((np.abs(HTH)>0.000001)&(np.abs(HTH_multi) < 0.000001)))
+np.transpose(np.nonzero(relHTHerr>1))
 
 #For instance... these are some missing values:
 #[[  0,   4],

@@ -388,7 +388,7 @@ class KFState:
 		if self.sparse:
 			#HTH = self._hessian_sparse(y_im, y_flow, y_m)
 			HTH = self._hessian_sparse_multi(y_im, y_flow, y_m)
-		else: 
+		else:
 			HTH = self._hessian(y_im, y_flow, y_m)
 		return (Hz, HTH, Hz_components)
 
@@ -511,6 +511,14 @@ class KFState:
 								q2 = 2*q[1]+i2+2*self.N*j2
 								HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
 								HTH[q2,q1] = HTH[q1,q2]
+								HTH_c[0,q1,q2] = hcomp[idx2,0]/deltaX/deltaX
+								HTH_c[0,q2,q1] = HTH_c[0,q1,q2]
+								HTH_c[1,q1,q2] = hcomp[idx2,1]/deltaX/deltaX
+								HTH_c[1,q2,q1] = HTH_c[1,q1,q2]
+								HTH_c[2,q1,q2] = hcomp[idx2,2]/deltaX/deltaX
+								HTH_c[2,q2,q1] = HTH_c[2,q1,q2]
+								HTH_c[3,q1,q2] = hcomp[idx2,3]/deltaX/deltaX
+								HTH_c[3,q2,q1] = HTH_c[3,q1,q2]
 
 		self.refresh() 
 		self.render()

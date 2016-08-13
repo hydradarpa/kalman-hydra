@@ -143,8 +143,8 @@ class CUDAGL_multi(CUDAGL):
 			        face = m * f + (!m && mp) * fp;
 
 			        if ((m || mp) && (face < (256*256-1))) {
-				        //if (face > {{ num_vertices }})
-						//	printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+				        if (face > {{ num_vertices }})
+							printf("histogram jz: Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
 						//if (face == 34) {
 						//	printf("Found face 34. ");
 						//}
@@ -235,8 +235,8 @@ class CUDAGL_multi(CUDAGL):
 			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
 
 			        if ((m || mp || mpp) && (face < (256*256-1))) {
-				        //if (face > {{ num_q }})
-						//	printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+				        if (face > {{ num_q }})
+							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
 
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
@@ -245,6 +245,89 @@ class CUDAGL_multi(CUDAGL):
 						atomicAdd(&gmem_nz[face], 1);
 					}
 				}
+			}
+
+			__global__ void j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
+								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
+								unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
+								float *output, float *output_fx, float *output_fy, float *output_m, 
+								int len) 
+			{
+			    // Load a segment of the input vector into shared memory
+			    __shared__ float partialSum[2*{{ block_size }}];
+			    __shared__ float partialSum_fx[2*{{ block_size }}];
+			    __shared__ float partialSum_fy[2*{{ block_size }}];
+			    __shared__ float partialSum_m[2*{{ block_size }}];
+			    const unsigned int scale = 1;
+
+			    float eps_J = {{ eps_J }};
+			    float eps_Z = {{ eps_Z }};
+			    float eps_M = {{ eps_M }};
+
+			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
+			    unsigned int t = threadIdx.x;
+			    unsigned int s = 2*blockIdx.x*blockDim.x;
+
+			    //CPU code for reference
+				//hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))
+				//hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)
+				//hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)
+
+			    if ((s + t) < len)
+			    {
+			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale)/eps_J;
+			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale)/eps_J;
+			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(ypp_m_t[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
+
+			        //partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))/255.0;
+			        //partialSum_fx[t] = (ypp_fx_t[s+t]-y_fx_t[s+t]);
+			        //partialSum_fy[t] = (ypp_fy_t[s+t]-y_fy_t[s+t]);
+			    }
+			    else
+			    {       
+			        partialSum[t] = 0.0;
+			        partialSum_fx[t] = 0.0;
+			        partialSum_fy[t] = 0.0;
+			        partialSum_m[t] = 0.0;
+			    }
+			    if ((s + blockDim.x + t) < len)
+			    {   
+			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)/eps_J;
+			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)/eps_J;
+			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(ypp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
+
+			        //partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0;
+			        //partialSum_fx[blockDim.x + t] = (ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);
+			        //partialSum_fy[blockDim.x + t] = (ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t]);
+			    }
+			    else
+			    {
+			        partialSum[blockDim.x + t] = 0.0;
+			        partialSum_fx[blockDim.x + t] = 0.0;
+			        partialSum_fy[blockDim.x + t] = 0.0;
+			        partialSum_m[blockDim.x + t] = 0.0;
+			    }
+			    // Traverse reduction tree
+			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
+			    {
+			      __syncthreads();
+			        if (t < stride)
+			            partialSum[t] += partialSum[t + stride];
+			            partialSum_fx[t] += partialSum_fx[t + stride];
+			            partialSum_fy[t] += partialSum_fy[t + stride];
+			            partialSum_m[t] += partialSum_m[t + stride];
+			    }
+			    __syncthreads();
+			    // Write the computed sum of the block to the output vector at correct index
+			    if (t == 0 && (globalThreadId*2) < len)
+			    {
+			        output[blockIdx.x] = partialSum[t];
+			        output_fx[blockIdx.x] = partialSum_fx[t];
+			        output_fy[blockIdx.x] = partialSum_fy[t];
+			        output_m[blockIdx.x] = partialSum_m[t];
+			    }
 			}
 			}
 			""")
@@ -255,6 +338,8 @@ class CUDAGL_multi(CUDAGL):
 			self.cuda_histjz.prepare("PPPPPPPPPPPPPPPPi")
 			self.cuda_histj = cuda_module.get_function("histogram_j")
 			self.cuda_histj.prepare("PPPPPPPPPPPPPPPPPi")
+			self.cuda_j = cuda_module.get_function("j")
+			self.cuda_j.prepare("PPPPPPPPPPPPPPPPi")			
 			self._createPBOs()
 
 	def _createPBOs(self):
@@ -565,7 +650,7 @@ class CUDAGL_multi(CUDAGL):
 		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RBGA)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
 		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
 		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
