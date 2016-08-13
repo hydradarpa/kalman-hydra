@@ -74,7 +74,8 @@ while(capture.isOpened()):
 		break
 
 	print 'Frame %d' % count 
-	kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	#kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	kf.compute(grayframe, flowframe, mask, imageoutput = './test_multipert_validation_%03d'%count)
 	#kf.compute(grayframe, flowframe, mask)
 
 	predstates[count,:] = np.squeeze(kf.state.X)

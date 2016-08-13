@@ -259,6 +259,8 @@ class CUDAGL_multi(CUDAGL):
 			    __shared__ float partialSum_fy[2*{{ block_size }}];
 			    __shared__ float partialSum_m[2*{{ block_size }}];
 			    const unsigned int scale = 1;
+			    const unsigned int stride = 4;
+			    int idx;
 
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
@@ -275,10 +277,11 @@ class CUDAGL_multi(CUDAGL):
 
 			    if ((s + t) < len)
 			    {
+			    	idx = stride*(s+t);
 			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
 			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale)/eps_J;
 			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale)/eps_J;
-			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(ypp_m_t[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
+			        partialSum_m[t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(ypp_m_t[idx]-y_m_t[idx]))/255.0/255.0/eps_M;
 
 			        //partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))/255.0;
 			        //partialSum_fx[t] = (ypp_fx_t[s+t]-y_fx_t[s+t]);
@@ -293,10 +296,11 @@ class CUDAGL_multi(CUDAGL):
 			    }
 			    if ((s + blockDim.x + t) < len)
 			    {   
+			    	idx = stride*(s+t+blockDim.x);
 			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
 			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)/eps_J;
 			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)/eps_J;
-			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(ypp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
+			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(ypp_m_t[idx]-y_m_t[idx]))/255.0/255.0/eps_M;
 
 			        //partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0;
 			        //partialSum_fx[blockDim.x + t] = (ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);

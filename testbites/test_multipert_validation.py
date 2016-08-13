@@ -99,6 +99,12 @@ self = kf.state
 #np.savez('./test_multipert_validation_single.npz', hz = hz, hzc = hzc)
 a = np.load('./test_multipert_validation_single.npz')
 
+hzc = a['hzc']; hz = a['hz']
+
+hz_diff = hz - hz_multi
+relHz = 100*hz_diff / hz_multi  
+relHz[relHz > 1]
+np.transpose(np.nonzero(relHz > 1))
 #Shows five errors of around 2%, all others are small enough to be around round-off
 #All errors occur in the mask component. Errors all of size 250 - might indicate something
 

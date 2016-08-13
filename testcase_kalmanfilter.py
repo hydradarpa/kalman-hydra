@@ -45,7 +45,7 @@ end = 2*nx//3
 #kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, sparse = False)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 
-kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda)
+kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda, multi = True)
 #kf = MSKalmanFilter(distmesh, frame, flowframe, cuda)
 
 rend = kf.state.renderer
