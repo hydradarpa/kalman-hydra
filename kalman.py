@@ -9,6 +9,7 @@ import cv2
 
 from distmesh_dyn import DistMesh
 from renderer import Renderer
+from imgproc import findObjectThreshold
 
 import pdb
 import sys
@@ -635,12 +636,14 @@ class KalmanFilter:
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
+		jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
+		print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
@@ -671,6 +674,22 @@ class KalmanFilter:
 		#State space size
 		return self.N*4
 
+	def projectmask(self, y_m):
+		print '-- projecting outliers onto contour'
+		#Project vertices onto boundary 
+		ddeps = 1e-1
+		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
+		p = self.state.vertices()
+		d = fd(p)
+		ix = d>0
+		for idx in range(10):
+			if ix.any():
+				dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
+				dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/ddeps # gradient
+				dgrad2 = dgradx**2 + dgrady**2
+				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
+		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
+
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
@@ -695,7 +714,7 @@ class KalmanFilter:
 
 class IteratedKalmanFilter(KalmanFilter):
 	#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.nI = nI
 		self.reltol = 1e-4
@@ -747,7 +766,7 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 10000):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
 		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices

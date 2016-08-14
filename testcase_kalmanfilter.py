@@ -9,7 +9,7 @@ from renderer import VideoStream
 
 import cProfile
 import re
-cProfile.run('re.compile("foo|bar")')
+#cProfile.run('re.compile("foo|bar")')
 
 import pdb 
 import time 
