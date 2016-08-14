@@ -12,7 +12,7 @@ import cv2
 from time import gmtime, strftime
 from matplotlib import pyplot as plt
 
-from cuda import CUDAGL 
+from cuda_multi import CUDAGL, CUDAGL_multi
 
 from cvtools import * 
 
@@ -86,16 +86,19 @@ void main()
 }
 """
 
-FRAG_SHADER_MASK = """
-varying vec3 v_vel;
-varying vec4 v_color;
-const float c_zero = 0.0;
-
-void main()
-{
-	gl_FragColor = vec4(1.0, c_zero, c_zero, 1.0);
-}
-"""
+#Need to make this paint the colors of the faces
+def frag_shader_mask(F):
+	FRAG_SHADER_MASK = """
+	#version 330 
+	uniform vec3 u_colors[%d];
+	out vec4 fragmentColor;
+	void main()
+	{
+		fragmentColor.rgb = u_colors[gl_PrimitiveID]/255;
+		fragmentColor.a = 1.0;
+	}
+	""" % F
+	return FRAG_SHADER_MASK
 
 FRAG_SHADER_FLOWY = """ // simple fragment shader
 varying vec3 v_vel;
@@ -192,8 +195,9 @@ def frag_shader_lines(I):
 
 class Renderer(app.Canvas):
 
-	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, showtracking = False, force = None):
+	def __init__(self, distmesh, vel, flow, nx, im1, cuda, eps_Z, eps_J, eps_M, labels, labels_hess, Q, showtracking = False, force = None, multi = True):
 
+		self.Q = Q
 		self.cuda = cuda
 		self.showtracking = showtracking 
 		self.force = force
@@ -202,10 +206,12 @@ class Renderer(app.Canvas):
 		self.state = 'texture'
 		self.tri = distmesh.t 
 		self.I = 3*len(self.tri)
+		self.F = len(self.tri)
+		self.n = distmesh.p.shape[0]
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		size = (nx, nx)
 		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
-		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx)
+		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx, labels, labels_hess)
 		self.l = self.l0.copy()
 
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
@@ -240,9 +246,10 @@ class Renderer(app.Canvas):
 		self._program_flow.bind(self._vbo)
 		self._program_red = gloo.Program(VERT_SHADER, FRAG_SHADER_RED)
 		self._program_green = gloo.Program(VERT_SHADER, FRAG_SHADER_GREEN)
-		self._program_mask = gloo.Program(VERT_SHADER, FRAG_SHADER_MASK)
-		#self._program_mask['u_color'] = 0, 1, 0, 1
+		self._program_mask = gloo.Program(VERT_SHADER, frag_shader_mask(self.F))
+		self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
 		self._program_mask.bind(self._vbo)
+
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
@@ -251,7 +258,7 @@ class Renderer(app.Canvas):
 		self._rendertex3 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r32f")
 		#No straightforward 1 bit texture support... possibly can do with some tricks, but also 
 		#possibly not worth it.
-		self._rendertex4 = gloo.Texture2D((self.shape + (1,)), format="luminance", internalformat="r8")
+		self._rendertex4 = gloo.Texture2D((self.shape + (4,)), format="rgba", internalformat="rgba")
 		self._fbo1 = gloo.FrameBuffer(self._rendertex1, gloo.RenderBuffer(self.shape))
 		self._fbo2 = gloo.FrameBuffer(self._rendertex2, gloo.RenderBuffer(self.shape))
 		self._fbo3 = gloo.FrameBuffer(self._rendertex3, gloo.RenderBuffer(self.shape))
@@ -276,7 +283,10 @@ class Renderer(app.Canvas):
 		b=self.context.shared._parser.get_object(self._rendertex2.id)._handle
 		c=self.context.shared._parser.get_object(self._rendertex3.id)._handle
 		d=self.context.shared._parser.get_object(self._rendertex4.id)._handle
-		self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
+		if multi:
+			self.cudagl = CUDAGL_multi(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda, self.n, len(self.Q))
+		else:
+			self.cudagl = CUDAGL(self._rendertex1, self._rendertex2, self._rendertex3, self._rendertex4, self._fbo1, self._fbo2, self._fbo3, self._fbo4, a, b, c, d, eps_Z, eps_J, eps_M, cuda)
 
 		#print self.size
 		#self._backend._vispy_set_size(*size)
@@ -303,12 +313,17 @@ class Renderer(app.Canvas):
 		with self._fbo3:
 			gloo.clear()
 			self._program_flowy.draw('triangles', self.indices_buffer)
+		#Render mask 
 		with self._fbo4:
 			gloo.clear()
 			self._program_mask.draw('triangles', self.indices_buffer)
 
 	def on_draw(self, event):
 		self.draw(event)
+
+	def _updatemaskpalette(self, colors):
+		for i in range(len(colors)):
+			self._program_mask['u_colors[%d]'%i] = colors[i,:]
 
 	def draw(self, event):
 		#Turn on additive blending
@@ -319,7 +334,14 @@ class Renderer(app.Canvas):
 			self._program.draw('triangles', self.indices_buffer)
 		elif self.state == 'flow':
 			self._program_flow.bind(self._vbo)
-			self._program_flow.draw('triangles', self.indices_buffer)			
+			self._program_flow.draw('triangles', self.indices_buffer)
+		elif self.state == 'mask':
+			self._program_mask.bind(self._vbo)
+			#self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			#self._updatemaskpalette(np.squeeze(self.randhessfacecolors[:,:,1]))
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
+			#print self._program_mask['u_colors']#self.randfacecolors[:,:,0]
+			self._program_mask.draw('triangles', self.indices_buffer)			
 		else:
 			self._program_red['texture1'] = self.current_texture
 			self._program_red.bind(self._quad)
@@ -339,6 +361,8 @@ class Renderer(app.Canvas):
 				self.state = 'overlay'
 			elif self.state == 'overlay':
 				self.state = 'texture'
+			elif self.state == 'texture':
+				self.state = 'mask'
 			else:
 				self.state = 'flow'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
@@ -367,11 +391,14 @@ class Renderer(app.Canvas):
 			return None
 		else:
 			oldstate = self.state
+			#self._updatemaskpalette(np.squeeze(self.randfacecolors[:,:,0]))
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 			#change render mode, rerender, and save
 			#for state in ['flow', 'raw', 'overlay', 'texture']:
-			for state in ['raw', 'overlay', 'texture']:
+			for state in ['raw', 'overlay', 'texture', 'mask']:
 				print 'saving', state
 				self.state = state
+				self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 				self.draw(None)
 				pixels = gloo.read_pixels()
 				pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
@@ -410,7 +437,7 @@ class Renderer(app.Canvas):
 		e_m = np.sum(np.multiply(255*y_m-m[:,:,0], 255*y_m-m[:,:,0]))
 		return e_im, e_fx, e_fy, e_m, fx, fy
 
-	def update_vertex_buffer(self, vertices, velocities):
+	def update_vertex_buffer(self, vertices, velocities, multi_idx, hess = False):
 		verdata = np.zeros((self.nP,3))
 		veldata = np.zeros((self.nP,3))
 		#rescale
@@ -455,10 +482,16 @@ class Renderer(app.Canvas):
 				self.linecolors[3*idx+2,:] = [0, 0, c, 1]
 	
 			#Update uniform data
-			self._program_lines['u_colors'] = self.linecolors 
+			self._program_lines['u_colors'] = self.linecolors
+		#self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,multi_idx])
+		if not hess:
+			self._updatemaskpalette(np.squeeze(self.facecolors[:,:,multi_idx]))
+		else:
+			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,multi_idx]))
+
 
 	#Load mesh data
-	def loadMesh(self, vertices, velocities, triangles, nx):
+	def loadMesh(self, vertices, velocities, triangles, nx, labels, labels_hess):
 		# Create vetices and texture coords, combined in one array for high performance
 		self.nP = vertices.shape[0]
 		self.nT = triangles.shape[0]
@@ -502,6 +535,36 @@ class Renderer(app.Canvas):
 		self.linecolors = np.zeros((3*len(triangles),4))		
 		self.linecolors[:,2] = 0.5
 		self.linecolors[:,3] = 1.0
+
+		#Setup multiperturbation face colors
+		self.facecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
+		for i in range(labels.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.facecolors[idx, 1, i] = np.floor_divide(labels[idx,i], 256)
+				self.facecolors[idx, 2, i] = np.remainder(labels[idx,i], 256)
+
+		#Setup multiperturbation face colors, randomized for clearer visualization
+		randcolors = np.random.rand(len(vertices), 3)
+		self.randfacecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
+		for i in range(labels.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.randfacecolors[idx, :, i] = 255*randcolors[labels[idx,i],:]
+
+		#Setup multiperturbation face colors
+		self.hessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		for i in range(labels_hess.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.hessfacecolors[idx, 1, i] = np.floor_divide(labels_hess[idx,i], 256)
+				self.hessfacecolors[idx, 2, i] = np.remainder(labels_hess[idx,i], 256)
+
+		#Setup multiperturbation face colors
+		randcolors = np.random.rand(np.max(labels_hess)+1, 3)
+		self.randhessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		for i in range(labels_hess.shape[1]):
+			for idx,t in enumerate(self.tri):
+				self.randhessfacecolors[idx, :, i] = 255*randcolors[labels_hess[idx,i],:]
+
+
 		outline = outlinedata.reshape((1,-1)).astype(np.uint16)
 		outline_buffer = gloo.IndexBuffer(outline)
 
@@ -518,7 +581,6 @@ class Renderer(app.Canvas):
 		quad_triangles = np.array([[0, 1, 2], [1, 2, 3]])
 		quad_indices = quad_triangles.reshape((1,-1)).astype(np.uint16)
 		quad_buffer = gloo.IndexBuffer(quad_indices)
-
 		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer, l0
 
 	def update_frame(self, y_im, y_flow, y_m):
@@ -561,6 +623,21 @@ class Renderer(app.Canvas):
 			#print 'Using CPU'
 			return self.cudagl.jz_CPU(state)
 
+	def jz_multi(self, state):
+		#Compare both and see if they're always off, or just sometimes...
+
+		if self.cuda:
+			#print 'jz(). Using GPU (CUDA)'
+			jz_GPU = self.cudagl.jz_multi(state)
+			#jz_CPU = self.cudagl.jz_CPU()
+			#print 'GPU:', jz_GPU, 'CPU:', jz_CPU
+			return jz_GPU
+
+			#return self.cudagl.jz()
+		else:
+			#print 'Using CPU'
+			return self.cudagl.jz_CPU(state)
+
 	def j(self, state, deltaX, i, j):
 		if self.cuda:
 			#print 'j(). Using GPU (CUDA)'
@@ -572,6 +649,22 @@ class Renderer(app.Canvas):
 			#return self.cudagl.j(state, deltaX, i, j)
 		else:
 			return self.cudagl.j_CPU(state, deltaX, i, j)
+
+	def j_multi(self, state, deltaX, ee, labelidx, ee_idx):
+		if self.cuda:
+			#print 'j(). Using GPU (CUDA)'
+			j_GPU = self.cudagl.j_multi(state, deltaX, ee, labelidx)
+			#j_CPU = self.cudagl.j_CPU(state, deltaX, ee)
+			#print 'GPU:', j_GPU, 'CPU:', j_CPU
+			return j_GPU
+		else:
+			h = np.zeros((len(self.Q), 1))
+			h_hist = np.zeros((len(self.Q), 1))
+			for idx, eidx in enumerate(ee_idx):
+				e = ee[idx]
+				h[eidx] = self.cudagl.j_CPU(state, deltaX, e[0], e[1]) 
+				h_hist[eidx] = 1
+			return (h, h_hist)
 
 class VideoStream:
 	def __init__(self, fn, threshold):

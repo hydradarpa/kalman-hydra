@@ -13,6 +13,8 @@ from OpenGL.GLU import *
 from OpenGL.GL.ARB.vertex_buffer_object import *
 from OpenGL.GL.ARB.pixel_buffer_object import *
 
+from cuda import * 
+
 try:
 	print 'Importing pycuda'
 	import pycuda.driver as cuda_driver
@@ -38,8 +40,10 @@ TEST_FLOWX = 2
 TEST_FLOWY = 3 
 TEST_MASK = 4
 
-class CUDAGL:
-	def __init__(self, texture, texture_fx, texture_fy, texture_m, fbo, fbo_fx, fbo_fy, fbo_m, texid, tex_fx_id, tex_fy_id, tex_m_id, eps_Z, eps_J, eps_M, cuda):
+class CUDAGL_multi(CUDAGL):
+	def __init__(self, texture, texture_fx, texture_fy, texture_m, fbo, fbo_fx, fbo_fy, fbo_m, texid, tex_fx_id, tex_fy_id, tex_m_id, eps_Z, eps_J, eps_M, cuda, n, len_Q):
+		self.len_Q = len_Q
+		self.n = n 
 		self.cuda = cuda 
 		self.eps_J = eps_J 
 		self.eps_Z = eps_Z
@@ -68,86 +72,179 @@ class CUDAGL:
 		
 			cuda_tpl = Template("""
 			extern "C" {
-			//Sum all elements of an input array of floats...
+
+			#include <stdio.h>
 
 			//Argument below:
 			//PPPPPPPPPPPPPPPPi
 
-			__global__ void jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
+			__global__ void histogram_jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
 								unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t,
 								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t,
 								float *output, float *output_fx, float *output_fy, float *output_m,
-								int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    __shared__ float partialSum_fx[2*{{ block_size }}];
-			    __shared__ float partialSum_fy[2*{{ block_size }}];
-			    __shared__ float partialSum_m[2*{{ block_size }}];
+								int len) {
+
+				int stride = 4;
+				int m, mp, fp1, fp2, fp, f1, f2, f, face;
+
+			    float ps;
+			    float ps_fx;
+			    float ps_fy;
+			    float ps_m;
 
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
 			    float eps_M = {{ eps_M }};
 
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int s = 2*blockIdx.x*blockDim.x;
+				// pixel coordinates
+				int x = blockIdx.x * blockDim.x + threadIdx.x;		
+				// grid dimensions
+				int nx = blockDim.x * gridDim.x; 
+				// linear thread index within 2D block
+				int t = threadIdx.x; 
+				// total threads in 2D block
+				int nt = blockDim.x; 
+				// linear block index within 2D grid
+				int g = blockIdx.x;
 
-			    //CPU code for reference
-	    		//self.z = (y_im.astype(float) - y_tilde.astype(float))/255
-			  	//self.zfx = y_flow[:,:,0] - y_fx_tilde
-				//self.zfy = y_flow[:,:,1] + y_fy_tilde
-				//hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
-				//hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
-				//hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
+				// initialize temporary accumulation array in global memory
+				float *gmem = output + g * {{ num_vertices }};
+				float *gmem_fx = output_fx + g * {{ num_vertices }};
+				float *gmem_fy = output_fy + g * {{ num_vertices }};
+				float *gmem_m = output_m + g * {{ num_vertices }};
 
-			    if ((s + t) < len)
-			    {
-			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(y_im[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[t] = (yp_fx_t[s+t]-y_fx_t[s+t])*(y_fx[s+t]-y_fx_t[s+t])/eps_J;
-			        partialSum_fy[t] = -(yp_fy_t[s+t]-y_fy_t[s+t])*(y_fy[s+t]+y_fy_t[s+t])/eps_J;
-			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(y_m[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0.0;
-			        partialSum_fx[t] = 0.0;
-			        partialSum_fy[t] = 0.0;
-			        partialSum_m[t] = 0.0;
-			    }
-			    if ((s + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(y_im[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
-			        partialSum_fx[blockDim.x + t] = (yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*(y_fx[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])/eps_J;
-			        partialSum_fy[blockDim.x + t] = -(yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*(y_fy[s+blockDim.x+t]+y_fy_t[s+blockDim.x+t])/eps_J;
-			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(y_m[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			        partialSum_fx[blockDim.x + t] = 0.0;
-			        partialSum_fy[blockDim.x + t] = 0.0;
-			        partialSum_m[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			            partialSum_fx[t] += partialSum_fx[t + stride];
-			            partialSum_fy[t] += partialSum_fy[t + stride];
-			            partialSum_m[t] += partialSum_m[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			        output_fx[blockIdx.x] = partialSum_fx[t];
-			        output_fy[blockIdx.x] = partialSum_fy[t];
-			        output_m[blockIdx.x] = partialSum_m[t];
-			    }
+				for (int i = t; i < {{ num_vertices }}; i += nt) {
+					gmem[i] = 0;
+					gmem_fx[i] = 0;
+					gmem_fy[i] = 0;
+					gmem_m[i] = 0;
+				}
+
+				// process pixels
+				// updates our block's partial histogram in global memory
+				for (int col = x; col < len; col += nx) {
+					ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(y_im[col]-y_im_t[col]))/255.0/255.0/eps_Z;
+					ps_fx = (yp_fx_t[col]-y_fx_t[col])*(y_fx[col]-y_fx_t[col])/eps_J;
+					ps_fy = -(yp_fy_t[col]-y_fy_t[col])*(y_fy[col]+y_fy_t[col])/eps_J;
+					ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(y_m[col]-y_m_t[stride*col]))/255.0/255.0/eps_M;
+
+			        //Face components from mask render
+			        mp = yp_m_t[stride*col] == 255;
+			        m = y_m_t[stride*col] == 255;
+
+			        fp1 = yp_m_t[stride*col+1];
+			        fp2 = yp_m_t[stride*col+2];
+			        fp = 256*fp1+fp2;
+
+			        f1 = y_m_t[stride*col+1];
+			        f2 = y_m_t[stride*col+2];
+			        f = 256*f1+f2;
+
+			        face = m * f + (!m && mp) * fp;
+
+			        if ((m || mp) && (face < (256*256-1))) {
+				        if (face > {{ num_vertices }})
+							printf("histogram jz: Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+						//if (face == 34) {
+						//	printf("Found face 34. ");
+						//}
+						atomicAdd(&gmem[face], ps);
+						atomicAdd(&gmem_fx[face], ps_fx);
+						atomicAdd(&gmem_fy[face], ps_fy);
+						atomicAdd(&gmem_m[face], ps_m);
+					}
+				}
+			}
+
+			__global__ void histogram_j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
+								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
+								unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
+								float *output, float *output_fx, float *output_fy, float *output_m, 
+								float *output_nz, int len) {
+
+				int stride = 4;
+				int m, mp, mpp, fpp1, fpp2, fpp, fp1, fp2, fp, f1, f2, f, face;
+				int scale = 1;
+
+			    float ps;
+			    float ps_fx;
+			    float ps_fy;
+			    float ps_m;
+
+			    float eps_J = {{ eps_J }};
+			    float eps_Z = {{ eps_Z }};
+			    float eps_M = {{ eps_M }};
+
+				// pixel coordinates
+				int x = blockIdx.x * blockDim.x + threadIdx.x;		
+				// grid dimensions
+				int nx = blockDim.x * gridDim.x; 
+				// linear thread index within 2D block
+				int t = threadIdx.x; 
+				// total threads in 2D block
+				int nt = blockDim.x; 
+				// linear block index within 2D grid
+				int g = blockIdx.x;
+
+				// initialize temporary accumulation array in global memory
+				float *gmem = output + g * {{ num_q }};
+				float *gmem_fx = output_fx + g * {{ num_q }};
+				float *gmem_fy = output_fy + g * {{ num_q }};
+				float *gmem_m = output_m + g * {{ num_q }};
+				float *gmem_nz = output_nz + g * {{ num_q }};
+
+				for (int i = t; i < {{ num_vertices }}; i += nt) {
+					gmem[i] = 0;
+					gmem_fx[i] = 0;
+					gmem_fy[i] = 0;
+					gmem_m[i] = 0;
+					gmem_nz[i] = 0;
+				}
+
+				// process pixels
+				// updates our block's partial histogram in global memory
+				for (int col = x; col < len; col += nx) {
+			        ps = ((float)(yp_im_t[col]-y_im_t[col]))*((float)(ypp_im_t[col]-y_im_t[col]))/255.0/255.0/eps_Z;
+			        ps_fx = ((yp_fx_t[col]-y_fx_t[col])*scale)*((ypp_fx_t[col]-y_fx_t[col])*scale)/eps_J;
+			        ps_fy = ((yp_fy_t[col]-y_fy_t[col])*scale)*((ypp_fy_t[col]-y_fy_t[col])*scale)/eps_J;
+
+			        //Mask component
+			        ps_m = ((float)(yp_m_t[stride*col]-y_m_t[stride*col]))*((float)(ypp_m_t[col*stride]-y_m_t[stride*col]))/255.0/255.0/eps_M;
+
+			        //Face components from mask render
+			        mpp = ypp_m_t[stride*col] == 255;
+			        mp = yp_m_t[stride*col] == 255;
+			        m = y_m_t[stride*col] == 255;
+
+			        fpp1 = ypp_m_t[stride*col+1];
+			        fpp2 = ypp_m_t[stride*col+2];
+			        fpp = 256*fpp1+fpp2;
+
+			        fp1 = yp_m_t[stride*col+1];
+			        fp2 = yp_m_t[stride*col+2];
+			        fp = 256*fp1+fp2;
+
+			        f1 = y_m_t[stride*col+1];
+			        f2 = y_m_t[stride*col+2];
+			        f = 256*f1+f2;
+
+			        //if (f == 110 || fp == 110 || fpp == 100) {
+					//		printf("f = %d, fp = %d, fpp = %d. ", f, fp, fpp);
+					//}
+
+			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
+
+			        if ((m || mp || mpp) && (face < (256*256-1))) {
+				        if (face > {{ num_q }})
+							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+
+						atomicAdd(&gmem[face], ps);
+						atomicAdd(&gmem_fx[face], ps_fx);
+						atomicAdd(&gmem_fy[face], ps_fy);
+						atomicAdd(&gmem_m[face], ps_m);
+						atomicAdd(&gmem_nz[face], 1);
+					}
+				}
 			}
 
 			__global__ void j(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
@@ -162,6 +259,8 @@ class CUDAGL:
 			    __shared__ float partialSum_fy[2*{{ block_size }}];
 			    __shared__ float partialSum_m[2*{{ block_size }}];
 			    const unsigned int scale = 1;
+			    const unsigned int stride = 4;
+			    int idx;
 
 			    float eps_J = {{ eps_J }};
 			    float eps_Z = {{ eps_Z }};
@@ -178,10 +277,11 @@ class CUDAGL:
 
 			    if ((s + t) < len)
 			    {
+			    	idx = stride*(s+t);
 			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(ypp_im_t[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
 			        partialSum_fx[t] = ((yp_fx_t[s+t]-y_fx_t[s+t])*scale)*((ypp_fx_t[s+t]-y_fx_t[s+t])*scale)/eps_J;
 			        partialSum_fy[t] = ((yp_fy_t[s+t]-y_fy_t[s+t])*scale)*((ypp_fy_t[s+t]-y_fy_t[s+t])*scale)/eps_J;
-			        partialSum_m[t] = ((float)(yp_m_t[s+t]-y_m_t[s+t]))*((float)(ypp_m_t[s+t]-y_m_t[s+t]))/255.0/255.0/eps_M;
+			        partialSum_m[t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(ypp_m_t[idx]-y_m_t[idx]))/255.0/255.0/eps_M;
 
 			        //partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))/255.0;
 			        //partialSum_fx[t] = (ypp_fx_t[s+t]-y_fx_t[s+t]);
@@ -196,10 +296,11 @@ class CUDAGL:
 			    }
 			    if ((s + blockDim.x + t) < len)
 			    {   
+			    	idx = stride*(s+t+blockDim.x);
 			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(ypp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
 			        partialSum_fx[blockDim.x + t] = ((yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)*((ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*scale)/eps_J;
 			        partialSum_fy[blockDim.x + t] = ((yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)*((ypp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*scale)/eps_J;
-			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))*((float)(ypp_m_t[s+blockDim.x+t]-y_m_t[s+blockDim.x+t]))/255.0/255.0/eps_M;
+			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(ypp_m_t[idx]-y_m_t[idx]))/255.0/255.0/eps_M;
 
 			        //partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0;
 			        //partialSum_fx[blockDim.x + t] = (ypp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t]);
@@ -233,160 +334,66 @@ class CUDAGL:
 			    }
 			}
 
-			__global__ void initjac(unsigned char *y_tilde, unsigned char *y_im, float *output, int len) 
+			__global__ void jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
+								unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t,
+								unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t,
+								float *output, float *output_fx, float *output_fy, float *output_m,
+								int len) 
 			{
 			    // Load a segment of the input vector into shared memory
 			    __shared__ float partialSum[2*{{ block_size }}];
+			    __shared__ float partialSum_fx[2*{{ block_size }}];
+			    __shared__ float partialSum_fy[2*{{ block_size }}];
+			    __shared__ float partialSum_m[2*{{ block_size }}];
+
+			    float eps_J = {{ eps_J }};
+			    float eps_Z = {{ eps_Z }};
+			    float eps_M = {{ eps_M }};
+
+			    unsigned int idx;
+			    unsigned const int stride = 4;
+
 			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
 			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
+			    unsigned int s = 2*blockIdx.x*blockDim.x;
 
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = (float)y_tilde[start + t]*(float)y_im[start + t]/255.0/255.0;
-			        //partialSum[t] = y_im[start + t]/255.0;
-			        //partialSum[t] = y_tilde[(start + t)]/255.0;
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = (float)y_tilde[start + blockDim.x + t]*(float)y_im[start + blockDim.x + t]/255.0/255.0;
-			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t]/255.0;
-			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)]/255.0;
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
+			    //CPU code for reference
+	    		//self.z = (y_im.astype(float) - y_tilde.astype(float))/255
+			  	//self.zfx = y_flow[:,:,0] - y_fx_tilde
+				//self.zfy = y_flow[:,:,1] + y_fy_tilde
+				//hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)
+				//hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)
+				//hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)
 
-			__global__ void initjac_int(unsigned char *y_tilde, unsigned char *y_im, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
-
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
+			    if ((s + t) < len)
 			    {
-			        partialSum[t] = (float)y_tilde[start + t]*(float)y_im[start + t];
-			    }
-			    else
-			    {       
-			        partialSum[t] = 0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {   
-			        partialSum[blockDim.x + t] = (float)y_tilde[start + blockDim.x + t]*(float)y_im[start + blockDim.x + t];
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
-
-			__global__ void initjac_float(float *y_tilde, float *y_im, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
-
-			    //pointwise multiplication here
-			    //may need to take a stride of 4, here... will experiment and see
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = y_tilde[start + t]*y_im[start + t];
-			        //partialSum[t] = y_im[start + t];
-			        //partialSum[t] = y_tilde[(start + t)];
-			    }
-			    else
-			    {
-			        partialSum[t] = 0.0;
-			    }
-			    if ((start + blockDim.x + t) < len)
-			    {
-			        partialSum[blockDim.x + t] = y_tilde[start + blockDim.x + t]*y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_im[start + blockDim.x + t];
-			        //partialSum[blockDim.x + t] = y_tilde[(start + blockDim.x + t)];
-			    }
-			    else
-			    {
-			        partialSum[blockDim.x + t] = 0.0;
-			    }
-			    // Traverse reduction tree
-			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
-			    {
-			      __syncthreads();
-			        if (t < stride)
-			            partialSum[t] += partialSum[t + stride];
-			    }
-			    __syncthreads();
-			    // Write the computed sum of the block to the output vector at correct index
-			    if (t == 0 && (globalThreadId*2) < len)
-			    {
-			        output[blockIdx.x] = partialSum[t];
-			    }
-			}
-
-			//Sum all elements of an input array of floats... (for testing purposes)
-			__global__ void total(float *input, float *output, int len) 
-			{
-			    // Load a segment of the input vector into shared memory
-			    __shared__ float partialSum[2*{{ block_size }}];
-			    int globalThreadId = blockIdx.x*blockDim.x + threadIdx.x;
-			    unsigned int t = threadIdx.x;
-			    unsigned int start = 2*blockIdx.x*blockDim.x;
-			    if ((start + t) < len)
-			    {
-			        partialSum[t] = input[start + t];      
+			    	idx = stride*(s+t);
+			        partialSum[t] = ((float)(yp_im_t[s+t]-y_im_t[s+t]))*((float)(y_im[s+t]-y_im_t[s+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[t] = (yp_fx_t[s+t]-y_fx_t[s+t])*(y_fx[s+t]-y_fx_t[s+t])/eps_J;
+			        partialSum_fy[t] = -(yp_fy_t[s+t]-y_fy_t[s+t])*(y_fy[s+t]+y_fy_t[s+t])/eps_J;
+			        partialSum_m[t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(y_m[s+t]-y_m_t[idx]))/255.0/255.0/eps_M;
 			    }
 			    else
 			    {       
 			        partialSum[t] = 0.0;
+			        partialSum_fx[t] = 0.0;
+			        partialSum_fy[t] = 0.0;
+			        partialSum_m[t] = 0.0;
 			    }
-			    if ((start + blockDim.x + t) < len)
+			    if ((s + blockDim.x + t) < len)
 			    {   
-			        partialSum[blockDim.x + t] = input[start + blockDim.x + t];
+			    	idx = stride*(s+t+blockDim.x);
+			        partialSum[blockDim.x + t] = ((float)(yp_im_t[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))*((float)(y_im[s+blockDim.x+t]-y_im_t[s+blockDim.x+t]))/255.0/255.0/eps_Z;
+			        partialSum_fx[blockDim.x + t] = (yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])*(y_fx[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])/eps_J;
+			        partialSum_fy[blockDim.x + t] = -(yp_fy_t[s+blockDim.x+t]-y_fy_t[s+blockDim.x+t])*(y_fy[s+blockDim.x+t]+y_fy_t[s+blockDim.x+t])/eps_J;
+			        partialSum_m[blockDim.x + t] = ((float)(yp_m_t[idx]-y_m_t[idx]))*((float)(y_m[s+blockDim.x+t]-y_m_t[idx]))/255.0/255.0/eps_M;
 			    }
 			    else
 			    {
 			        partialSum[blockDim.x + t] = 0.0;
+			        partialSum_fx[blockDim.x + t] = 0.0;
+			        partialSum_fy[blockDim.x + t] = 0.0;
+			        partialSum_m[blockDim.x + t] = 0.0;
 			    }
 			    // Traverse reduction tree
 			    for (unsigned int stride = blockDim.x; stride > 0; stride /= 2)
@@ -394,45 +401,34 @@ class CUDAGL:
 			      __syncthreads();
 			        if (t < stride)
 			            partialSum[t] += partialSum[t + stride];
+			            partialSum_fx[t] += partialSum_fx[t + stride];
+			            partialSum_fy[t] += partialSum_fy[t + stride];
+			            partialSum_m[t] += partialSum_m[t + stride];
 			    }
 			    __syncthreads();
 			    // Write the computed sum of the block to the output vector at correct index
 			    if (t == 0 && (globalThreadId*2) < len)
 			    {
 			        output[blockIdx.x] = partialSum[t];
+			        output_fx[blockIdx.x] = partialSum_fx[t];
+			        output_fy[blockIdx.x] = partialSum_fy[t];
+			        output_m[blockIdx.x] = partialSum_m[t];
 			    }
 			}
 			}
 			""")
-			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M)
+			cuda_source = cuda_tpl.render(block_size=BLOCK_SIZE, eps_J = self.eps_J, eps_Z = self.eps_Z, eps_M = self.eps_M, num_vertices = self.n, num_q = self.len_Q)
 			cuda_module = SourceModule(cuda_source, no_extern_c=1)
 			# The argument "PPP" indicates that the zscore function will take three PBOs as arguments
-			self.cuda_jz = cuda_module.get_function("jz")
-			self.cuda_jz.prepare("PPPPPPPPPPPPPPPPi")
+			self.cuda_histjz = cuda_module.get_function("histogram_jz")
+			self.cuda_histjz.prepare("PPPPPPPPPPPPPPPPi")
+			self.cuda_histj = cuda_module.get_function("histogram_j")
+			self.cuda_histj.prepare("PPPPPPPPPPPPPPPPPi")
 			self.cuda_j = cuda_module.get_function("j")
-			self.cuda_j.prepare("PPPPPPPPPPPPPPPPi")
-			self.cuda_initjac = cuda_module.get_function("initjac")
-			self.cuda_initjac.prepare("PPPi")
-			self.cuda_initjac_int = cuda_module.get_function("initjac_int")
-			self.cuda_initjac_int.prepare("PPPi")
-			self.cuda_initjac_float = cuda_module.get_function("initjac_float")
-			self.cuda_initjac_float.prepare("PPPi")
-			self.cuda_total = cuda_module.get_function("total")
-			self.cuda_total.prepare("PPP")
-
-			# create y_tilde and y_im pixel buffer objects for processing
+			self.cuda_j.prepare("PPPPPPPPPPPPPPPPi")			
+			self.cuda_jz = cuda_module.get_function("jz")
+			self.cuda_jz.prepare("PPPPPPPPPPPPPPPPi")			
 			self._createPBOs()
-
-	def __del__(self):
-		self._destroy_PBOs()
-
-	def _initializePBO(self, data):
-		pbo = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, pbo)
-		glBufferData(GL_ARRAY_BUFFER, data, GL_DYNAMIC_DRAW)
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
-		pycuda_pbo = cuda_gl.BufferObject(long(pbo))
-		return (pbo, pycuda_pbo)
 
 	def _createPBOs(self):
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
@@ -488,61 +484,6 @@ class CUDAGL:
 		(yp_m_tilde_pbo, pycuda_yp_m_tilde_pbo) = self._initializePBO(data)
 		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
-
-	def _destroy_PBOs(self):
-		print 'Deleting PBOs'
-		global pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo
-
-		for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
-		 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
-			glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
-			glDeleteBuffers(1, long(pbo));
-			glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-		pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo = [None]*32
-
-	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW, imageformat = GL_RED):
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(pbo))
-		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
-		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, bytesize, None, usage)
-		glEnable(GL_TEXTURE_2D)
-		glActiveTexture(GL_TEXTURE0)
-		glBindTexture(GL_TEXTURE_2D, texid)
-		glGetTexImage(GL_TEXTURE_2D, 0, imageformat, texformat, ctypes.c_void_p(0))
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
-		glDisable(GL_TEXTURE_2D)
 
 	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
 		y_im = np.flipud(y_im_flip)
@@ -614,10 +555,11 @@ class CUDAGL:
 		########################################################################
 
 		#Load buffer for packing
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
-		self._pack_texture_into_PBO(y_m_tilde_pbo, self.tex_m_id, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(y_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
-		#Load y_im (current frame) info from CPU memory
+		#Load y_m (current frame) info from CPU memory
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_m_pbo))
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_m, GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
@@ -638,70 +580,6 @@ class CUDAGL:
 		else:
 			return None 
 
-	def total_test(self):
-		return self._process_total_test()
-
-	def _process_initjac_test(self, mode=TEST_IMAGE):
-		"""Use PyCuda"""
-		nElements = self.width*self.height
-		nBlocks = nElements/BLOCK_SIZE + 1
-		print 'No. elements:', nElements
-		print 'No. blocks:', nBlocks
-		grid_dimensions = (nBlocks, 1)
-		block_dimensions = (BLOCK_SIZE, 1, 1)
-
-		if mode == TEST_IMAGE:
-			tilde_mapping = pycuda_y_tilde_pbo.map()
-			im_mapping = pycuda_y_im_pbo.map()
-			kernel = self.cuda_initjac
-			#dtype = np.uint32
-			dtype = np.float32
-		elif mode == TEST_FLOWX:
-			tilde_mapping = pycuda_y_fx_tilde_pbo.map()
-			im_mapping = pycuda_y_fx_pbo.map()
-			kernel = self.cuda_initjac_float
-			dtype = np.float32
-		elif mode == TEST_MASK:
-			tilde_mapping = pycuda_y_m_tilde_pbo.map()
-			im_mapping = pycuda_y_m_pbo.map()
-			kernel = self.cuda_initjac
-			#dtype = np.uint32
-			dtype = np.float32
-		else:
-			tilde_mapping = pycuda_y_fy_tilde_pbo.map()
-			im_mapping = pycuda_y_fy_pbo.map()
-			kernel = self.cuda_initjac_float
-			dtype = np.float32
-		
-		partialsum = np.zeros((nBlocks,1), dtype=dtype)
-		partialsum_gpu = gpuarray.to_gpu(partialsum)
-		kernel.prepared_call(grid_dimensions, block_dimensions,\
-			 tilde_mapping.device_ptr(), \
-			 im_mapping.device_ptr(), partialsum_gpu.gpudata, np.uint32(nElements))
-		cuda_driver.Context.synchronize()
-		tilde_mapping.unmap()
-		im_mapping.unmap()
-		partialsum = partialsum_gpu.get()
-		sum_gpu = np.sum(partialsum[0:np.ceil(nBlocks/2.)])
-		return sum_gpu
-
-	def _process_total_test(self):
-		"""Use PyCuda"""
-		nElements = np.int32(BLOCK_SIZE*16+10)
-		nBlocks = nElements/BLOCK_SIZE + 1
-		grid_dimensions = (nBlocks,1,1)
-		a = np.random.randn(nElements).astype(np.float32)
-		sum_cpu = np.sum(a)
-		partialsum_gpu = np.zeros((nBlocks,1), dtype=np.float32)
-		self.cuda_total(cuda_driver.In(a), cuda_driver.Out(partialsum_gpu), \
-			np.uint32(nElements), grid=grid_dimensions, block=(BLOCK_SIZE, 1, 1))
-		cuda_driver.Context.synchronize()
-		#Sum result from GPU
-		print nBlocks
-		print partialsum_gpu
-		sum_gpu = np.sum(partialsum_gpu[0:np.ceil(nBlocks/2.)])
-		return sum_cpu, sum_gpu
-
 	def jz(self, state):
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
@@ -710,6 +588,7 @@ class CUDAGL:
 
 		assert yp_tilde_pbo is not None
 		floatsize = 4 #number of bytes, 32bit precision...
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
 
 		#state.refresh()
@@ -723,7 +602,7 @@ class CUDAGL:
 		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
 		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
 		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
@@ -817,6 +696,134 @@ class CUDAGL:
 		jzc = np.array([sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu])
 		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
+	def jz_multi(self, state):
+		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo
+
+		assert yp_tilde_pbo is not None
+		floatsize = 4 #number of bytes, 32bit precision...
+		rgbsize = 4 #32-bit
+		bytesize = self.height*self.width
+
+		#state.refresh()
+		#state.render()
+
+		pycuda_yp_tilde_pbo.unregister()
+		pycuda_yp_fx_tilde_pbo.unregister()
+		pycuda_yp_fy_tilde_pbo.unregister()
+		pycuda_yp_m_tilde_pbo.unregister()
+
+		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
+		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
+		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
+		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+
+		#Copied perturbed image data to CUDA accessible memory, run the Cuda kernel
+		return self._process_jz_multi()
+
+	def _process_jz_multi(self):
+		""" Use PyCuda """
+		nElements = self.width*self.height
+		nBlocks = nElements/BLOCK_SIZE + 1
+		#print 'No. elements:', nElements
+		#print 'No. blocks:', nBlocks
+		grid_dimensions = (nBlocks, 1)
+		block_dimensions = (BLOCK_SIZE, 1, 1)
+
+		im_mapping = pycuda_y_im_pbo.map()
+		fx_mapping = pycuda_y_fx_pbo.map()
+		fy_mapping = pycuda_y_fy_pbo.map()
+		m_mapping = pycuda_y_m_pbo.map()
+
+		tilde_im_mapping = pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+
+		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		
+		partialsum = np.zeros((nBlocks*self.n,1), dtype=np.float32)
+		partialsum_gpu = gpuarray.to_gpu(partialsum)
+		partialsum_fx = np.zeros((nBlocks*self.n,1), dtype=np.float32)
+		partialsum_fx_gpu = gpuarray.to_gpu(partialsum_fx)
+		partialsum_fy = np.zeros((nBlocks*self.n,1), dtype=np.float32)
+		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
+		partialsum_m = np.zeros((nBlocks*self.n,1), dtype=np.float32)
+		partialsum_m_gpu = gpuarray.to_gpu(partialsum_m)
+
+
+		#CUDA definition:
+		#__global__ void jz(unsigned char *y_im, float *y_fx, float *y_fy, unsigned char *y_m, 
+		#						unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t,
+		#						unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t,
+		#						float *output, float *output_fx, float *output_fy, float *output_m,
+		#						int len) 
+
+		#Make the call...
+		cuda_driver.Context.synchronize()
+		self.cuda_histjz.prepared_call(grid_dimensions, block_dimensions,\
+			 im_mapping.device_ptr(),fx_mapping.device_ptr(),\
+			 fy_mapping.device_ptr(),m_mapping.device_ptr(),\
+			 tilde_im_mapping.device_ptr(),tilde_fx_mapping.device_ptr(),\
+			 tilde_fy_mapping.device_ptr(),tilde_m_mapping.device_ptr(),\
+			 p_tilde_mapping.device_ptr(),p_tilde_fx_mapping.device_ptr(),\
+			 p_tilde_fy_mapping.device_ptr(),p_tilde_m_mapping.device_ptr(),\
+			 partialsum_gpu.gpudata, partialsum_fx_gpu.gpudata,\
+			 partialsum_fy_gpu.gpudata, partialsum_m_gpu.gpudata,\
+			 np.uint32(nElements))
+		cuda_driver.Context.synchronize()
+
+		im_mapping.unmap()
+		fx_mapping.unmap()
+		fy_mapping.unmap()
+		m_mapping.unmap()
+
+		tilde_im_mapping.unmap()
+		tilde_fx_mapping.unmap()
+		tilde_fy_mapping.unmap()
+		tilde_m_mapping.unmap()
+
+		p_tilde_mapping.unmap()
+		p_tilde_fx_mapping.unmap()
+		p_tilde_fy_mapping.unmap()
+		p_tilde_m_mapping.unmap()
+
+		#Read out the answer...
+		partialsum = partialsum_gpu.get()
+		partialsum_fx = partialsum_fx_gpu.get()
+		partialsum_fy = partialsum_fy_gpu.get()
+		partialsum_m = partialsum_m_gpu.get()
+
+		#Reshape arrays
+		partialsum = np.reshape(partialsum, (nBlocks,self.n))
+		partialsum_fx = np.reshape(partialsum_fx, (nBlocks,self.n))
+		partialsum_fy = np.reshape(partialsum_fy, (nBlocks,self.n))
+		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.n))
+
+		#print partialsum.shape 
+
+		sum_gpu = np.matrix(np.sum(partialsum,0)).T
+		sum_fx_gpu = np.matrix(np.sum(partialsum_fx,0)).T
+		sum_fy_gpu = np.matrix(np.sum(partialsum_fy,0)).T
+		sum_m_gpu = np.matrix(np.sum(partialsum_m,0)).T
+
+		#print sum_m_gpu.shape 
+
+		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
+		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
+		jzc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
+		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
+
 	def j(self, state, deltaX, i, j):
 
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
@@ -830,6 +837,7 @@ class CUDAGL:
 
 		assert yp_tilde_pbo is not None
 		floatsize = 4
+		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
 
 		#Perturb first
@@ -846,7 +854,7 @@ class CUDAGL:
 		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
 		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
 		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
@@ -866,7 +874,7 @@ class CUDAGL:
 		self._pack_texture_into_PBO(ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
 		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
 		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
@@ -958,93 +966,163 @@ class CUDAGL:
 		#print sum_gpu, sum_fx_gpu/scale/scale, sum_fy_gpu/scale/scale
 		return sum_gpu+sum_fx_gpu/scale/scale+sum_fy_gpu/scale/scale+sum_m_gpu
 
-	############################################################################
-	#CPU code###################################################################
-	############################################################################
+	def j_multi(self, state, deltaX, ee, label):
 
-	#60 lines instead of 900...
+		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo
 
-	def get_pixel_data(self):
-		with self._fbo1:
-			a = gloo.read_pixels()[:,:,0]
-		with self._fbo2:
-			b = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		with self._fbo3:
-			c = gloo.read_pixels(out_type = np.float32)[:,:,0]
-		with self._fbo4:
-			d = gloo.read_pixels()[:,:,0]
-		return (a, b, c, d)
+		assert yp_tilde_pbo is not None
+		floatsize = 4
+		rgbsize = 4 #32-bit
+		bytesize = self.height*self.width
 
-	def initjacobian_CPU(self, y_im, y_flow, y_m, test = False):
-		#Need to check scaling of y_m
-		(y_tilde, y_fx_tilde, y_fy_tilde, y_m_tilde) = self.get_pixel_data()
-		self.z = (y_im.astype(float) - y_tilde.astype(float))/255
-		self.y_tilde = y_tilde.astype(float)/255
-		self.zfx = y_flow[:,:,0] - y_fx_tilde
-		self.y_fx_tilde = y_fx_tilde
-		self.zfy = y_flow[:,:,1] + y_fy_tilde
-		self.y_fy_tilde = y_fy_tilde
-		self.zm = (y_m.astype(float) - y_m_tilde.astype(float))/255
-		self.y_m_tilde = y_m_tilde.astype(float)/255
-
-		if test is True:
-			#Image
-			return np.sum(np.multiply(y_im/255.,y_tilde/255., dtype=np.float32), dtype=np.float32)
-			#return np.sum(y_tilde/255., dtype=np.float32)
-			#return np.sum(y_im/255., dtype=np.float32)
-			#Flow X
-			#return np.sum(np.multiply(y_flow[:,:,0], y_fx_tilde, dtype=np.float32), dtype=np.float32)
-			#return np.sum(y_flow[:,:,0], dtype = np.float32)
-			#return np.sum(y_fx_tilde, dtype = np.float32)
-			#Flow Y
-			#return np.sum(np.multiply(y_flow[:,:,1], y_fy_tilde, dtype=np.float32), dtype=np.float32)
-			#return np.sum(y_flow[:,:,1], dtype = np.float32)
-			#return np.sum(y_fy_tilde, dtype = np.float32)
-			#Mask
-			#return np.sum(np.multiply(y_m/255.,y_m_tilde/255., dtype=np.float32), dtype=np.float32)
-			#return np.sum(y_m_tilde/255., dtype=np.float32)
-			#return np.sum(y_m/255., dtype=np.float32)
-		else:
-			return None
-
-	def jz_CPU(self, state):
-		(yp_tilde, yp_fx_tilde, yp_fy_tilde, yp_m_tilde) = self.get_pixel_data()
-		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), self.z)/self.eps_Z
-		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, self.zfx)/self.eps_J
-		hzy = -np.multiply(yp_fy_tilde-self.y_fy_tilde, self.zfy)/self.eps_J
-		hzm = np.multiply((yp_m_tilde.astype(float)/255-self.y_m_tilde), self.zm)/self.eps_M
-		#print 'CPU', np.sum(hz), np.sum(hzx), np.sum(hzy)
-		jzc = np.array([np.sum(hz), np.sum(hzx), np.sum(hzy), np.sum(hzm)])
-		return (np.sum(hz) + np.sum(hzx) + np.sum(hzy) + np.sum(hzm), jzc)
-
-	def j_CPU(self, state, deltaX, i, j):
-		state.X[i,0] += deltaX
-		state.refresh()
+		#Perturb first
+		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] + deltaX)
+		state.refresh(label, hess = True)
 		state.render()
-		state.X[i,0] -= deltaX
-		(yp_tilde, yp_fx_tilde, yp_fy_tilde, yp_m_tilde) = self.get_pixel_data()
-		state.X[j,0] += deltaX
-		state.refresh()
+		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] - deltaX)
+
+		#Load pixel buffers
+		pycuda_yp_tilde_pbo.unregister()
+		pycuda_yp_fx_tilde_pbo.unregister()
+		pycuda_yp_fy_tilde_pbo.unregister()
+		pycuda_yp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
+		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
+		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
+		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+
+		#Perturb second
+		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] + deltaX)
+		state.refresh(label, hess = True)
 		state.render()
-		state.X[j,0] -= deltaX
-		(ypp_tilde, ypp_fx_tilde, ypp_fy_tilde, ypp_m_tilde) = self.get_pixel_data()
-		hz = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))/self.eps_Z
-		hzx = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde)/self.eps_J
-		hzy = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde)/self.eps_J
-		hzm = np.multiply((yp_m_tilde.astype(float)/255-self.y_m_tilde), (ypp_m_tilde.astype(float)/255-self.y_m_tilde))/self.eps_M
+		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] - deltaX)
 
-		#Test
-		hz_t = np.multiply((yp_tilde.astype(float)/255-self.y_tilde), (ypp_tilde.astype(float)/255-self.y_tilde))/self.eps_Z
-		hzx_t = np.multiply(yp_fx_tilde-self.y_fx_tilde, ypp_fx_tilde-self.y_fx_tilde, dtype=np.float32)/self.eps_J
-		hzy_t = np.multiply(yp_fy_tilde-self.y_fy_tilde, ypp_fy_tilde-self.y_fy_tilde, dtype=np.float32)/self.eps_J
-		hzm_t = np.multiply((yp_m_tilde.astype(float)/255-self.y_m_tilde), (ypp_m_tilde.astype(float)/255-self.y_m_tilde))/self.eps_M
+		#Load pixel buffers
+		pycuda_ypp_tilde_pbo.unregister()
+		pycuda_ypp_fx_tilde_pbo.unregister()
+		pycuda_ypp_fy_tilde_pbo.unregister()
+		pycuda_ypp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
+		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
+		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
+		pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(ypp_m_tilde_pbo))
 
-		#print 'j_CPU components'
-		#print np.sum(hz_t),np.sum(hzx_t),np.sum(hzy_t)
-		#print np.sum(hz_t)+np.sum(hzx_t)+np.sum(hzy_t)
-		#print 'No. non zero components'
-		#print 'x:', np.mean(np.abs(hzx_t))
-		#print 'y:', np.mean(np.abs(hzy_t))
-		return np.sum(hz)+np.sum(hzx)+np.sum(hzy)+np.sum(hzm)
+		#Send to CUDA!
+		return self._process_j_multi()
 
-		#(yp_fx_t[s+blockDim.x+t]-y_fx_t[s+blockDim.x+t])
+	def _process_j_multi(self):
+		""" Use PyCuda """
+
+		nElements = self.width*self.height
+		nBlocks = nElements/BLOCK_SIZE + 1
+		#print 'No. elements:', nElements
+		#print 'No. blocks:', nBlocks
+		grid_dimensions = (nBlocks, 1)
+		block_dimensions = (BLOCK_SIZE, 1, 1)
+
+		tilde_im_mapping = pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+
+		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		
+		pp_tilde_mapping = pycuda_ypp_tilde_pbo.map()
+		pp_tilde_fx_mapping = pycuda_ypp_fx_tilde_pbo.map()
+		pp_tilde_fy_mapping = pycuda_ypp_fy_tilde_pbo.map()
+		pp_tilde_m_mapping = pycuda_ypp_m_tilde_pbo.map()
+
+		partialsum = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_gpu = gpuarray.to_gpu(partialsum)
+		partialsum_fx = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_fx_gpu = gpuarray.to_gpu(partialsum_fx)
+		partialsum_fy = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_fy_gpu = gpuarray.to_gpu(partialsum_fy)
+		partialsum_m = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_m_gpu = gpuarray.to_gpu(partialsum_m)
+		partialsum_nz = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
+		partialsum_nz_gpu = gpuarray.to_gpu(partialsum_nz)
+
+		#CUDA definition
+		#__global__ void histj(unsigned char *y_im_t, float *y_fx_t, float *y_fy_t, unsigned char *y_m_t, 
+		#					unsigned char *yp_im_t, float *yp_fx_t, float *yp_fy_t, unsigned char *yp_m_t, 
+		#					unsigned char *ypp_im_t, float *ypp_fx_t, float *ypp_fy_t, unsigned char *ypp_m_t, 
+		#					float *output, float *output_fx, float *output_fy, float *output_m, 
+		#					float *output_nz, int len) 
+
+		#Make the call...
+		self.cuda_histj.prepared_call(grid_dimensions, block_dimensions,\
+			 tilde_im_mapping.device_ptr(),tilde_fx_mapping.device_ptr(),\
+			 tilde_fy_mapping.device_ptr(),tilde_m_mapping.device_ptr(),\
+			 p_tilde_mapping.device_ptr(),p_tilde_fx_mapping.device_ptr(),\
+			 p_tilde_fy_mapping.device_ptr(),p_tilde_m_mapping.device_ptr(),\
+			 pp_tilde_mapping.device_ptr(),pp_tilde_fx_mapping.device_ptr(),\
+			 pp_tilde_fy_mapping.device_ptr(),pp_tilde_m_mapping.device_ptr(),\
+			 partialsum_gpu.gpudata, partialsum_fx_gpu.gpudata,\
+			 partialsum_fy_gpu.gpudata, partialsum_m_gpu.gpudata,\
+			 partialsum_nz_gpu.gpudata, np.uint32(nElements))
+		cuda_driver.Context.synchronize()
+
+		tilde_im_mapping.unmap()
+		tilde_fx_mapping.unmap()
+		tilde_fy_mapping.unmap()
+		tilde_m_mapping.unmap()
+
+		p_tilde_mapping.unmap()
+		p_tilde_fx_mapping.unmap()
+		p_tilde_fy_mapping.unmap()
+		p_tilde_m_mapping.unmap()
+
+		pp_tilde_mapping.unmap()
+		pp_tilde_fx_mapping.unmap()
+		pp_tilde_fy_mapping.unmap()
+		pp_tilde_m_mapping.unmap()
+
+		#Read out the answer...
+		partialsum = partialsum_gpu.get()
+		partialsum_fx = partialsum_fx_gpu.get()
+		partialsum_fy = partialsum_fy_gpu.get()
+		partialsum_m = partialsum_m_gpu.get()
+		partialsum_nz = partialsum_nz_gpu.get()
+
+		#Reshape arrays
+		partialsum = np.reshape(partialsum, (nBlocks,self.len_Q))
+		partialsum_fx = np.reshape(partialsum_fx, (nBlocks,self.len_Q))
+		partialsum_fy = np.reshape(partialsum_fy, (nBlocks,self.len_Q))
+		partialsum_m = np.reshape(partialsum_m, (nBlocks,self.len_Q))
+		partialsum_nz = np.reshape(partialsum_nz, (nBlocks,self.len_Q))
+
+		#print partialsum.shape 
+
+		sum_gpu = np.matrix(np.sum(partialsum,0)).T
+		sum_fx_gpu = np.matrix(np.sum(partialsum_fx,0)).T
+		sum_fy_gpu = np.matrix(np.sum(partialsum_fy,0)).T
+		sum_m_gpu = np.matrix(np.sum(partialsum_m,0)).T
+
+		sum_nz_gpu = np.matrix(np.sum(partialsum_nz,0)).T
+		j_nz = sum_nz_gpu > 0
+
+		#print sum_m_gpu.shape 
+
+		#print 'GPU', sum_gpu, sum_fx_gpu, sum_fy_gpu 
+		#return sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu
+		jc = np.bmat([[sum_gpu,sum_fx_gpu,sum_fy_gpu,sum_m_gpu]])
+		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, j_nz, jc)

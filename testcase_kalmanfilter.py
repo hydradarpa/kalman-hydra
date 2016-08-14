@@ -7,6 +7,10 @@ from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph,\
 		MSKalmanFilter, IteratedMSKalmanFilter, stats
 from renderer import VideoStream
 
+import cProfile
+import re
+#cProfile.run('re.compile("foo|bar")')
+
 import pdb 
 import time 
 import cv2 
@@ -41,7 +45,7 @@ end = 2*nx//3
 #kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, sparse = False)
 #kf = KalmanFilterMorph(distmesh, frame, cuda)
 
-kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda)
+kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda, multi = True)
 #kf = MSKalmanFilter(distmesh, frame, flowframe, cuda)
 
 rend = kf.state.renderer
@@ -51,12 +55,14 @@ state = kf.state
 nx = nx 
 deltaX = -2
 
+#Test creation of multi-perturbations
+
 nF = video.shape[2]
 nI = 10
 count = 0
 
 #for i in range(nF):
-for i in range(1):
+for i in range(5):
 	count += 1
 	print 'Frame %d' % count 
 	frame = video[:,:,i]
@@ -64,7 +70,7 @@ for i in range(1):
 	flowframe = flow[:,:,:,i]
 	time.sleep(0.3)
 
-	#kf._newton()
+	#kf._newton
 	#J = kf._jacobian()
 
 	#(Hz, HTH, Hz_components) = kf.state.update(frame, flowframe, mask)

@@ -9,6 +9,7 @@ import cv2
 
 from distmesh_dyn import DistMesh
 from renderer import Renderer
+from imgproc import findObjectThreshold
 
 import pdb
 import sys
@@ -16,6 +17,8 @@ from time import gmtime, strftime
 from timeit import timeit 
 import time 
 from numpy.linalg import norm, inv 
+
+from useful import * 
 
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 
@@ -81,7 +84,10 @@ def timer_counter(tc, inc):
 stats = Statistics()
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True, multi = True):
+
+		self.multi = multi 
+		print 'multiperturbation rendering:', multi 
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
@@ -157,10 +163,11 @@ class KFState:
 		#as these will also be orthogonal. But that shouldn't have too big an impact really...
 		e = np.ones((2,2))
 		J = np.kron(Jv, e)
+		#print J 
 		self.J = np.kron(e,J)
 		self.I = distmesh.L.shape[0]
 
-		#Compute incidence matrix from connectivity matrix
+		#Compute incidence matrix
 		self.Kp = np.zeros((self.N, self.I))
 		for idx,[i1,i2] in enumerate(distmesh.bars):
 			#An edge exists, add these pairs
@@ -172,8 +179,179 @@ class KFState:
 		self.l0 = self.lengths()
 		self.L = distmesh.L 
 
+		########################################################################
+		#Compute partitions for jacobian multi-rendering########################
+		########################################################################
+		self.E = []
+		self.labels = []
+		Q = np.arange(self.N)
+		A = np.arange(self.N)
+		while len(Q) > 0:
+			#print 'Outer loop'
+			P = np.array([])
+			e = []
+			while len(Q) > 0:
+				#print '  * Inner loop'
+				#Current vertex
+				q = Q[0]
+				#print '  * q = ', q
+				#Things connected to current vertex
+				p = np.nonzero(Jv[q,:])[0]
+				p = np.setdiff1d(p, q)
+				#print '  * p = ', p
+				#Add current vertex
+				e += [q]
+				#Add things connected to current vertex to the 'do later' list
+				P = np.intersect1d(np.union1d(P, p), A)
+				#print '  * P = ', P
+				A = np.setdiff1d(A, q)
+				#Remove q and p from Q
+				Q = np.setdiff1d(Q, p)
+				Q = np.setdiff1d(Q, q)
+			Q = P
+			#if type(e).__module__ == np.__name__:
+			#	ee = e.tolist()
+			#else:
+			#	ee = e
+			#self.E += [ee]
+			self.E += [e]
+
+		#print self.E 
+
+		#For each element of the partitions we label the triangles and assign them colors
+		#for the mask 
+		#We check there're no conflicts in the labels
+		#Horribly inefficient... 
+		self.labels = -1*np.ones((len(self.tri), len(self.E)))
+		for k,e in enumerate(self.E):
+			label = -1*np.ones(len(self.tri))
+			#For each triangle, find it any of its vertices are mentioned in e,
+			#give it a color...
+			for i, node in enumerate(e):
+				for j, t in enumerate(self.tri):
+					if node in t:
+						label[j] = node
+			self.labels[:,k] = label
+
+		#print self.labels 
+
+		#while len(Q) > 0:
+		#	#print 'Outer loop'
+		#	P = []
+		#	e = []
+		#	while len(Q) > 0:
+		#		#print '  * Inner loop'
+		#		#Current vertices
+		#		q = Q[0]
+		#
+		#		#Things connected to current vertex
+		#		p = np.nonzero(Jv[q,:])[0]
+		#		p = np.setdiff1d(p, q)
+		#
+		#		#Add current vertex
+		#		e += [q]
+		#
+		#		#Add things connected to current vertex to the 'do later' list
+		#		P = np.intersect1d(np.union1d(P, p), A)
+		#
+		#		A = np.setdiff1d(A, q)
+		#		#Remove q and p from Q
+		#		Q = np.setdiff1d(Q, p)
+		#		Q = np.setdiff1d(Q, q)
+		#	Q = P
+		#	self.E += [e]			
+
+		########################################################################
+		#Compute independent pairs of dependent pairs of vertices###############
+		########################################################################
+		E_hessian = []
+		E_hessian_idx = []
+		Q = []
+		for i in range(self.N):
+			for j in range(i,self.N):
+				if Jv[i,j]:
+					Q = Q + [[i,j]]
+		Q = np.array(Q)
+		Qidx = np.arange(len(Q))
+		A = Q.copy()
+		Aidx = Qidx.copy()
+		
+		while len(Q) > 0:
+			#print 'Outer loop'
+			P = np.array([])
+			Pidx = np.array([])
+			e = np.array([])
+			eidx = np.array([])
+			while len(Q) > 0:
+				#print '  * Inner loop'
+				#Current vertices
+				q = Q[0]
+				qidx = Qidx[0]
+				#All things connected to current vertex
+				p1 = np.nonzero(Jv[q[0],:])[0]
+				p2 = np.nonzero(Jv[q[1],:])[0]
+				p = np.union1d(p1,p2)
+				p = np.setdiff1d(p, q)
+				#All pairs that contain these vertices
+				p_all1 = np.array([i in p for i in Q[:,0]])
+				p_all2 = np.array([i in p for i in Q[:,1]])
+				p_self1 = np.all(Q == [q[0],q[0]],1)
+				p_self2 = np.all(Q == [q[1],q[1]],1)
+				p_all_idx = p_all1 + p_all2 + p_self1 + p_self2
+				p_all = Q[p_all_idx,:]
+				p_all_idx = Qidx[p_all_idx]
+		
+				#Add current vertex
+				e = union2d(e, q)
+				eidx = np.union1d(eidx,[qidx])
+
+				#Add things connected to current vertex to the 'do later' list
+				P = intersect2d(union2d(P, p_all), A)
+				Pidx = np.intersect1d(np.union1d(Pidx, p_all_idx), Aidx)
+				A = setdiff2d(A, q)
+				Aidx = np.setdiff1d(Aidx, qidx)
+				#Remove q and p from Q
+				Q = setdiff2d(Q, p_all)
+				Q = setdiff2d(Q, q)
+				Qidx = np.setdiff1d(Qidx, p_all_idx)
+				Qidx = np.setdiff1d(Qidx, qidx)
+			Q = P
+			Qidx = Pidx
+			if len(e.shape) == 1:
+				e = np.reshape(e, (-1,2))
+			E_hessian += [e]	
+			E_hessian_idx += [eidx]	
+		
+		self.E_hessian = E_hessian 
+		self.E_hessian_idx = E_hessian_idx
+
+		#Create labels for the hessian multiperturbation
+		Q = []
+		for i in range(self.N):
+			for j in range(i,self.N):
+				if Jv[i,j]:
+					Q = Q + [[i,j]]
+		Q = np.array(Q)
+		self.Q = Q 
+
+		self.labels_hess = -1*np.ones((len(self.tri), len(self.E_hessian)))
+		#print self.E_hessian 
+		for k,e in enumerate(self.E_hessian):
+			label = -1*np.ones(len(self.tri))
+			#For each triangle, find if any of its vertices are mentioned in e,
+			#give it a color...
+			if len(e.shape) < 2:
+				e = np.reshape(e, (-1,2))
+			for i, nodes in enumerate(e):
+				#print nodes 
+				n1, n2 = nodes 
+				for j, t in enumerate(self.tri):
+					if (n1 in t) or (n2 in t):
+						label[j] = E_hessian_idx[k][i]
+			self.labels_hess[:,k] = label
+
 		#Renderer
-		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, showtracking = True)
+		self.renderer = Renderer(distmesh, self._vel, flow, self.nx, im, cuda, eps_Z, eps_J, eps_M, self.labels, self.labels_hess, self.Q, showtracking = True)
 
 		#stats = Statistics()
 		stats.meshpts = self.N
@@ -197,8 +375,11 @@ class KFState:
 	def size(self):
 		return self.X.shape[0]
 
-	def refresh(self):
-		self.renderer.update_vertex_buffer(self.vertices(), self.velocities())
+	def refresh(self, multi_idx = -1, hess = False):
+		if not hess:
+			self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx)
+		else:
+			self.renderer.update_vertex_buffer(self.vertices(), self.velocities(), multi_idx, hess)
 
 	@counter(stats.renders, [1])
 	def render(self):
@@ -207,14 +388,59 @@ class KFState:
 	#@timer_counter(stats.stateupdatecount, stats.stateupdatetime)
 	@timer_counter(stats.stateupdatetc, [1])
 	def update(self, y_im, y_flow, y_m):
-		(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
+		if self.multi:
+			(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
+		else:
+			(Hz, Hz_components) = self._jacobian(y_im, y_flow, y_m)
 		if self.sparse:
-			HTH = self._hessian_sparse(y_im, y_flow, y_m)
-		else: 
+			if self.multi:
+				HTH = self._hessian_sparse_multi(y_im, y_flow, y_m)
+			else:
+				HTH = self._hessian_sparse(y_im, y_flow, y_m)
+		else:
 			HTH = self._hessian(y_im, y_flow, y_m)
 		return (Hz, HTH, Hz_components)
 
 	@timer_counter(stats.jacobianrenderstc, stats.jacinc)
+	def _jacobian_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		Hz = np.zeros((self.size(),1))
+		Hz_components = np.zeros((self.size(),4))
+
+		#Perturb groups of vertices
+		#This loop is ~32 renders, instead of ~280, for hydra1 synthetic mesh of 35 nodes
+		for idx, e in enumerate(self.E):
+			self.refresh(idx) 
+			self.render()
+			#Set reference image to unperturbed images
+			self.renderer.initjacobian(y_im, y_flow, y_m)
+			for i in range(2):
+				for j in range(2):
+					offset = i+2*self.N*j 
+					#print e 
+					ee = offset + 2*np.array(e, dtype=np.int)
+					#print ee 
+					self.X[ee,0] = np.squeeze(self.X[ee, 0] + deltaX)
+					self.refresh(idx)
+					self.render()
+					(hz, hzc) = self.renderer.jz_multi(self)
+					Hz[ee,0] = np.squeeze(hz[e]/deltaX)
+					Hz_components[ee,:] = hzc[e,:]/deltaX
+					
+					self.X[ee,0] = np.squeeze(self.X[ee,0] - 2*deltaX)
+					self.refresh(idx)
+					self.render()
+					(hz, hzc) = self.renderer.jz_multi(self)
+					Hz[ee,0] = np.squeeze(Hz[ee,0] - hz[e].T/deltaX)
+					Hz_components[ee,:] -= hzc[e,:]/deltaX
+					self.X[ee,0] = np.squeeze(self.X[ee,0] + deltaX)
+					
+					Hz[ee,0] = Hz[ee,0]/2
+					Hz_components[ee,:] = Hz_components[ee,:]/2
+
+		self.refresh() 
+		self.render()
+		return (Hz, Hz_components)
+
 	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
@@ -263,6 +489,50 @@ class KFState:
 		return HTH
 
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
+	def _hessian_sparse_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		HTH = np.zeros((self.size(),self.size()))
+		HTH_c = np.zeros((4, self.size(), self.size()))
+
+		for idx, e in enumerate(self.E_hessian):
+			self.refresh(idx, hess = True) 
+			self.render()
+			#Set reference image to unperturbed images
+			self.renderer.initjacobian(y_im, y_flow, y_m)
+			ee = e.copy()
+			eeidx = self.E_hessian_idx[idx]
+			#print e 
+			for i1 in range(2):
+				for j1 in range(2):
+					for i2 in range(2):
+						for j2 in range(2):
+							offset1 = i1+2*self.N*j1 
+							offset2 = i2+2*self.N*j2 
+							ee[:,0] = 2*e[:,0] + offset1 
+							ee[:,1] = 2*e[:,1] + offset2 
+							#Do the render
+							(h, h_hist, hcomp) = self.renderer.j_multi(self, deltaX, ee, idx, eeidx)
+							#Unpack the answers into the hessian matrix
+							h = h[h_hist > 0]
+							qidx = self.Q[np.squeeze(np.array(h_hist)),:]
+							for idx2 in range(len(qidx)):
+								q = qidx[idx2]
+								q1 = 2*q[0]+i1+2*self.N*j1
+								q2 = 2*q[1]+i2+2*self.N*j2
+								HTH[q1,q2] = h[0,idx2]/deltaX/deltaX
+								HTH[q2,q1] = HTH[q1,q2]
+								HTH_c[0,q1,q2] = hcomp[idx2,0]/deltaX/deltaX
+								HTH_c[0,q2,q1] = HTH_c[0,q1,q2]
+								HTH_c[1,q1,q2] = hcomp[idx2,1]/deltaX/deltaX
+								HTH_c[1,q2,q1] = HTH_c[1,q1,q2]
+								HTH_c[2,q1,q2] = hcomp[idx2,2]/deltaX/deltaX
+								HTH_c[2,q2,q1] = HTH_c[2,q1,q2]
+								HTH_c[3,q1,q2] = hcomp[idx2,3]/deltaX/deltaX
+								HTH_c[3,q2,q1] = HTH_c[3,q1,q2]
+
+		self.refresh() 
+		self.render()
+		return HTH
+
 	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
@@ -307,11 +577,11 @@ class KFState:
 		self.renderer.force = f 
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, multi = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.predtime = 0
 		self.updatetime = 0
 
@@ -366,12 +636,14 @@ class KalmanFilter:
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
+		jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
+		print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
@@ -402,6 +674,22 @@ class KalmanFilter:
 		#State space size
 		return self.N*4
 
+	def projectmask(self, y_m):
+		print '-- projecting outliers onto contour'
+		#Project vertices onto boundary 
+		ddeps = 1e-1
+		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
+		p = self.state.vertices()
+		d = fd(p)
+		ix = d>0
+		for idx in range(10):
+			if ix.any():
+				dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
+				dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/ddeps # gradient
+				dgrad2 = dgradx**2 + dgrady**2
+				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
+		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
+
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
@@ -425,8 +713,9 @@ class KalmanFilter:
 		return self.state.renderer.error(self.state, y_im, y_flow, y_m)
 
 class IteratedKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+	#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.nI = nI
 		self.reltol = 1e-4
 
@@ -477,8 +766,9 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 10000):
+		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
+		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
@@ -604,8 +894,8 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 
 #Mass-spring Kalman filter
 class MSKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness

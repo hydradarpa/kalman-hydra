@@ -1,4 +1,7 @@
 *.pyc
+*.npz
+*.npy
+*.txt
 *.avi
 *.map
 *.eps

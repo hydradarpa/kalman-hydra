@@ -15,8 +15,8 @@ name = 'hydra1'
 #name = 'square2_gradient'
 #name = 'square1'
 #ff = 'translate_leftup_stretch'
-ff = 'translate_leftup'
-notes = 'masked_iekf_springs'
+ff = 'warp'
+notes = 'masked_iekf'
 cuda = True
 sparse = True
 
@@ -60,8 +60,8 @@ rms_pos = np.zeros(nF)
 
 flowstream = FlowStream(flow_in)
 ret_flow, flowframe = flowstream.read()
+#kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
-#kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda = cuda, sparse = sparse)
 
 count = 0
 print 'Tracking with Kalman filter'
@@ -74,7 +74,8 @@ while(capture.isOpened()):
 		break
 
 	print 'Frame %d' % count 
-	kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	#kf.compute(grayframe, flowframe, mask, imageoutput = img_out+'solution_frame_%03d'%count)
+	kf.compute(grayframe, flowframe, mask, imageoutput = './test_multipert_validation_%03d'%count)
 	#kf.compute(grayframe, flowframe, mask)
 
 	predstates[count,:] = np.squeeze(kf.state.X)
