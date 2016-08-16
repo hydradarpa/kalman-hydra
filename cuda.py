@@ -27,6 +27,25 @@ except:
 
 from vispy import gloo 
 
+#Declare globals. Using these between different modules doesn't appear to work
+#will need to fix.....
+pycuda_y_tilde_pbo, y_tilde_pbo, \
+ pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+ pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+ pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+ pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+ pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+ pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+ pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+ pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+ pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+ pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+ pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+ pycuda_y_im_pbo, y_im_pbo,\
+ pycuda_y_fx_pbo, y_fx_pbo,\
+ pycuda_y_fy_pbo, y_fy_pbo,\
+ pycuda_y_m_pbo, y_m_pbo = [None]*32 
+
 from jinja2 import Template 
 
 import pdb 
@@ -423,8 +442,8 @@ class CUDAGL:
 			# create y_tilde and y_im pixel buffer objects for processing
 			self._createPBOs()
 
-	def __del__(self):
-		self._destroy_PBOs()
+	#def __del__(self):
+	#	self._destroy_PBOs()
 
 	def _initializePBO(self, data):
 		pbo = glGenBuffers(1)
@@ -489,8 +508,12 @@ class CUDAGL:
 		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
 
+	def _del_PBO(self, pbo):
+		glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
+		glDeleteBuffers(1, long(pbo))
+		glBindBuffer(GL_ARRAY_BUFFER, 0)
+
 	def _destroy_PBOs(self):
-		print 'Deleting PBOs'
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
 		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
@@ -508,15 +531,28 @@ class CUDAGL:
 		 pycuda_y_fy_pbo, y_fy_pbo,\
 		 pycuda_y_m_pbo, y_m_pbo
 
+		print 'Deleting PBOs'
+		print 'pycuda_y_tilde_pbo, y_tilde_pbo',pycuda_y_tilde_pbo, y_tilde_pbo
+
+		pycuda_y_tilde_pbo.unregister()
+		pycuda_y_fx_tilde_pbo.unregister()
+		pycuda_y_fy_tilde_pbo.unregister()
+		pycuda_y_m_tilde_pbo.unregister()
+		pycuda_y_im_pbo.unregister()
+		pycuda_y_fx_pbo.unregister()
+		pycuda_y_fy_pbo.unregister()
+		pycuda_y_m_pbo.unregister()
+
 		for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
 		 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
 		 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
 		 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
-			glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
-			glDeleteBuffers(1, long(pbo));
-			glBindBuffer(GL_ARRAY_BUFFER, 0)
+			try:
+				self._del_PBO(pbo)
+			except TypeError:
+				print 'Passing' 
 
-		pycuda_y_tilde_pbo, y_tilde_pbo,\
+		pycuda_y_tilde_pbo, y_tilde_pbo, \
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
 		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
 		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
@@ -545,12 +581,6 @@ class CUDAGL:
 		glDisable(GL_TEXTURE_2D)
 
 	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
-		y_im = np.flipud(y_im_flip)
-		y_m = np.flipud(y_m_flip)
-		yfx = np.flipud(y_flow[:,:,0])
-		yfy = np.flipud(y_flow[:,:,0])
-		y_flow = np.dstack((yfx,yfy))
-
 		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
@@ -560,6 +590,14 @@ class CUDAGL:
 		 pycuda_y_fx_pbo, y_fx_pbo,\
 		 pycuda_y_fy_pbo, y_fy_pbo,\
 		 pycuda_y_m_pbo, y_m_pbo
+
+		print 'initjac: y_tilde_pbo', y_tilde_pbo 
+
+		y_im = np.flipud(y_im_flip)
+		y_m = np.flipud(y_m_flip)
+		yfx = np.flipud(y_flow[:,:,0])
+		yfy = np.flipud(y_flow[:,:,0])
+		y_flow = np.dstack((yfx,yfy))
 
 		#Tell cuda we are going to get into these buffers
 		pycuda_y_tilde_pbo.unregister()
@@ -818,7 +856,6 @@ class CUDAGL:
 		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
 	def j(self, state, deltaX, i, j):
-
 		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
 		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\

@@ -44,7 +44,7 @@ class Statistics:
 	def reset(self):
 		self.__init__()
 
-#Decorator to count update times... uses time module so not as accurate
+#Decorators to count update times... uses time module so not as accurate as profiling
 def timer(runtimer):
 	def counter_wrapper(func):
 		def func_wrapper(*args, **kwargs):
@@ -81,6 +81,7 @@ def timer_counter(tc, inc):
 		return func_wrapper
 	return counter_wrapper
 
+#'Global variable' not the best solution... 
 stats = Statistics()
 
 class KFState:
@@ -636,14 +637,14 @@ class KalmanFilter:
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
-		jt = timeit(lambda: self.projectmask(y_m), number = 1)
+		#jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
-		print 'Projection time:', jt 
+		#print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:

@@ -485,13 +485,58 @@ class CUDAGL_multi(CUDAGL):
 		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
 
-	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
-		y_im = np.flipud(y_im_flip)
-		y_m = np.flipud(y_m_flip)
-		yfx = np.flipud(y_flow[:,:,0])
-		yfy = np.flipud(y_flow[:,:,0])
-		y_flow = np.dstack((yfx,yfy))
+	def _del_PBO(self, pbo):
+		glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
+		glDeleteBuffers(1, long(pbo))
+		glBindBuffer(GL_ARRAY_BUFFER, 0)
 
+	def _destroy_PBOs(self):
+		global pycuda_y_tilde_pbo, y_tilde_pbo,\
+		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+		 pycuda_y_im_pbo, y_im_pbo,\
+		 pycuda_y_fx_pbo, y_fx_pbo,\
+		 pycuda_y_fy_pbo, y_fy_pbo,\
+		 pycuda_y_m_pbo, y_m_pbo
+
+		print 'Deleting PBOs'
+
+		for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
+		 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+		 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+		 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
+			try:
+				self._del_PBO(pbo)
+			except TypeError:
+				print 'Passing' 
+
+		pycuda_y_tilde_pbo, y_tilde_pbo, \
+		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+		 pycuda_y_im_pbo, y_im_pbo,\
+		 pycuda_y_fx_pbo, y_fx_pbo,\
+		 pycuda_y_fy_pbo, y_fy_pbo,\
+		 pycuda_y_m_pbo, y_m_pbo = [None]*32
+
+	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
 		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
 		global pycuda_y_tilde_pbo, y_tilde_pbo,\
 		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
@@ -501,6 +546,14 @@ class CUDAGL_multi(CUDAGL):
 		 pycuda_y_fx_pbo, y_fx_pbo,\
 		 pycuda_y_fy_pbo, y_fy_pbo,\
 		 pycuda_y_m_pbo, y_m_pbo
+
+		#print pycuda_y_tilde_pbo 
+
+		y_im = np.flipud(y_im_flip)
+		y_m = np.flipud(y_m_flip)
+		yfx = np.flipud(y_flow[:,:,0])
+		yfy = np.flipud(y_flow[:,:,0])
+		y_flow = np.dstack((yfx,yfy))
 
 		#Tell cuda we are going to get into these buffers
 		pycuda_y_tilde_pbo.unregister()
@@ -701,6 +754,9 @@ class CUDAGL_multi(CUDAGL):
 		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
 		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
 		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo
+
+		#print 'jz_multi: pycuda_yp_tilde_pbo', pycuda_yp_tilde_pbo 
+		#print dir(pycuda_yp_tilde_pbo)
 
 		assert yp_tilde_pbo is not None
 		floatsize = 4 #number of bytes, 32bit precision...

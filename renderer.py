@@ -294,8 +294,8 @@ class Renderer(app.Canvas):
 
 	def __del__(self):
 		print 'Deleting renderer'
-		self.close()
 		del self.cudagl 
+		self.close()
 
 	def on_resize(self, event):
 		width, height = event.physical_size
