@@ -66,7 +66,6 @@ for idx, gridsize in enumerate(gridsizes):
 		kf.compute(frame, flowframe, mask)
 
 	kf.state.renderer.cudagl._destroy_PBOs()
-	#kf.state.renderer.cudagl.__del__()
 	kf.__del__()
 
 	#Extract stats

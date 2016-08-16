@@ -384,9 +384,9 @@ class Renderer(app.Canvas):
 			else:
 				self.state = 'flow'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle, q to quit)' % self.state
-			self.update()
 			if self.state == 'outline':
-				self.title += 'Face: %d' % self.activeface 
+				self.title += ' Face: %d' % self.activeface 
+			self.update()
 
 		#Shift the active face around a bit...
 		if event.key in ['a', 's', 'd', 'w']:
@@ -413,6 +413,7 @@ class Renderer(app.Canvas):
 		if event.key in ['h']:
 			self.screenshot()
 		if event.key in ['q']:
+			self.cudagl._destroy_PBOs()
 			self.close()
 		if event.key in ['t']:
 			self.activeface += 1 
