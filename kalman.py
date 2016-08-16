@@ -44,7 +44,7 @@ class Statistics:
 	def reset(self):
 		self.__init__()
 
-#Decorator to count update times... uses time module so not as accurate
+#Decorators to count update times... uses time module so not as accurate as profiling
 def timer(runtimer):
 	def counter_wrapper(func):
 		def func_wrapper(*args, **kwargs):
@@ -81,6 +81,7 @@ def timer_counter(tc, inc):
 		return func_wrapper
 	return counter_wrapper
 
+#'Global variable' not the best solution... 
 stats = Statistics()
 
 class KFState:
@@ -134,6 +135,7 @@ class KFState:
 		for i in range(len(a)):
 			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
 		nz = abs(self.sineface) > 0.06
+		print 'Removing %d faces for being too flat' % np.sum(nz == 0)
 		self.sineface = self.sineface[nz]
 		self.ori = self.ori[nz]
 		self.tri = self.tri[nz]
@@ -636,14 +638,14 @@ class KalmanFilter:
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
-		jt = timeit(lambda: self.projectmask(y_m), number = 1)
+		#jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
-		print 'Projection time:', jt 
+		#print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
@@ -680,8 +682,9 @@ class KalmanFilter:
 		ddeps = 1e-1
 		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
 		p = self.state.vertices()
+		p_orig = p.copy()
 		d = fd(p)
-		ix = d>0
+		ix = d>1
 		for idx in range(10):
 			if ix.any():
 				dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
@@ -689,6 +692,10 @@ class KalmanFilter:
 				dgrad2 = dgradx**2 + dgrady**2
 				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
 		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
+
+		#Update velocities also... or else it might crash...
+		self.state.X[(2*self.N):] += np.reshape(p - p_orig, (-1,1))
+
 
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
@@ -766,7 +773,7 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 10000):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
 		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices

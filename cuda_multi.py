@@ -431,86 +431,113 @@ class CUDAGL_multi(CUDAGL):
 			self._createPBOs()
 
 	def _createPBOs(self):
-		global pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo
-
 		num_texels = self.width*self.height
 		###########
 		#y_im data#
 		###########
 		data = np.zeros((num_texels,1),np.uint8)
-		(y_tilde_pbo, pycuda_y_tilde_pbo) = self._initializePBO(data)
-		(yp_tilde_pbo, pycuda_yp_tilde_pbo) = self._initializePBO(data)
-		(ypp_tilde_pbo, pycuda_ypp_tilde_pbo) = self._initializePBO(data)
-		(y_im_pbo, pycuda_y_im_pbo) = self._initializePBO(data)
+		(self.y_tilde_pbo, self.pycuda_y_tilde_pbo) = self._initializePBO(data)
+		(self.yp_tilde_pbo, self.pycuda_yp_tilde_pbo) = self._initializePBO(data)
+		(self.ypp_tilde_pbo, self.pycuda_ypp_tilde_pbo) = self._initializePBO(data)
+		(self.y_im_pbo, self.pycuda_y_im_pbo) = self._initializePBO(data)
 
 		#############
 		#Flow x data#
 		#############
 		data = np.zeros((num_texels,1),np.float32)
-		(y_fx_tilde_pbo, pycuda_y_fx_tilde_pbo) = self._initializePBO(data)
-		(yp_fx_tilde_pbo, pycuda_yp_fx_tilde_pbo) = self._initializePBO(data)
-		(ypp_fx_tilde_pbo, pycuda_ypp_fx_tilde_pbo) = self._initializePBO(data)
-		(y_fx_pbo, pycuda_y_fx_pbo) = self._initializePBO(data)
+		(self.y_fx_tilde_pbo, self.pycuda_y_fx_tilde_pbo) = self._initializePBO(data)
+		(self.yp_fx_tilde_pbo, self.pycuda_yp_fx_tilde_pbo) = self._initializePBO(data)
+		(self.ypp_fx_tilde_pbo, self.pycuda_ypp_fx_tilde_pbo) = self._initializePBO(data)
+		(self.y_fx_pbo, self.pycuda_y_fx_pbo) = self._initializePBO(data)
 
 		#############
 		#Flow y data#
 		#############
 		data = np.zeros((num_texels,1),np.float32)
-		(y_fy_tilde_pbo, pycuda_y_fy_tilde_pbo) = self._initializePBO(data)
-		(yp_fy_tilde_pbo, pycuda_yp_fy_tilde_pbo) = self._initializePBO(data)
-		(ypp_fy_tilde_pbo, pycuda_ypp_fy_tilde_pbo) = self._initializePBO(data)
-		(y_fy_pbo, pycuda_y_fy_pbo) = self._initializePBO(data)
+		(self.y_fy_tilde_pbo, self.pycuda_y_fy_tilde_pbo) = self._initializePBO(data)
+		(self.yp_fy_tilde_pbo, self.pycuda_yp_fy_tilde_pbo) = self._initializePBO(data)
+		(self.ypp_fy_tilde_pbo, self.pycuda_ypp_fy_tilde_pbo) = self._initializePBO(data)
+		(self.y_fy_pbo, self.pycuda_y_fy_pbo) = self._initializePBO(data)
 
 		###########
 		#Mask data#
 		###########
 		data = np.zeros((num_texels,1),np.uint8)
-		(y_m_tilde_pbo, pycuda_y_m_tilde_pbo) = self._initializePBO(data)
-		(yp_m_tilde_pbo, pycuda_yp_m_tilde_pbo) = self._initializePBO(data)
-		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
-		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
+		(self.y_m_tilde_pbo, self.pycuda_y_m_tilde_pbo) = self._initializePBO(data)
+		(self.yp_m_tilde_pbo, self.pycuda_yp_m_tilde_pbo) = self._initializePBO(data)
+		(self.ypp_m_tilde_pbo, self.pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
+		(self.y_m_pbo, self.pycuda_y_m_pbo) = self._initializePBO(data)
+
+	#def _del_PBO(self, pbo):
+	#	glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
+	#	glDeleteBuffers(1, long(pbo))
+	#	glBindBuffer(GL_ARRAY_BUFFER, 0)
+
+	#def _destroy_PBOs(self):
+	#	global pycuda_y_tilde_pbo, y_tilde_pbo,\
+	#	 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+	#	 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+	#	 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+	#	 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+	#	 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+	#	 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+	#	 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+	#	 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+	#	 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+	#	 pycuda_y_im_pbo, y_im_pbo,\
+	#	 pycuda_y_fx_pbo, y_fx_pbo,\
+	#	 pycuda_y_fy_pbo, y_fy_pbo,\
+	#	 pycuda_y_m_pbo, y_m_pbo
+
+	#	print 'Deleting PBOs'
+
+	#	for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
+	#	 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
+	#		try:
+	#			self._del_PBO(pbo)
+	#		except TypeError:
+	#			print 'Passing' 
+
+	#	pycuda_y_tilde_pbo, y_tilde_pbo, \
+	#	 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+	#	 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+	#	 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+	#	 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+	#	 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+	#	 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+	#	 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+	#	 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+	#	 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+	#	 pycuda_y_im_pbo, y_im_pbo,\
+	#	 pycuda_y_fx_pbo, y_fx_pbo,\
+	#	 pycuda_y_fy_pbo, y_fy_pbo,\
+	#	 pycuda_y_m_pbo, y_m_pbo = [None]*32
 
 	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
+		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
+		#print pycuda_y_tilde_pbo 
+
 		y_im = np.flipud(y_im_flip)
 		y_m = np.flipud(y_m_flip)
 		yfx = np.flipud(y_flow[:,:,0])
 		yfy = np.flipud(y_flow[:,:,0])
 		y_flow = np.dstack((yfx,yfy))
 
-		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 
-		global pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo
-
 		#Tell cuda we are going to get into these buffers
-		pycuda_y_tilde_pbo.unregister()
-		pycuda_y_fx_tilde_pbo.unregister()
-		pycuda_y_fy_tilde_pbo.unregister()
-		pycuda_y_m_tilde_pbo.unregister()
-		pycuda_y_im_pbo.unregister()
-		pycuda_y_fx_pbo.unregister()
-		pycuda_y_fy_pbo.unregister()
-		pycuda_y_m_pbo.unregister()
+		self.pycuda_y_tilde_pbo.unregister()
+		self.pycuda_y_fx_tilde_pbo.unregister()
+		self.pycuda_y_fy_tilde_pbo.unregister()
+		self.pycuda_y_m_tilde_pbo.unregister()
+		self.pycuda_y_im_pbo.unregister()
+		self.pycuda_y_fx_pbo.unregister()
+		self.pycuda_y_fy_pbo.unregister()
+		self.pycuda_y_m_pbo.unregister()
 
 		########################################################################
 		#y_im###################################################################
@@ -518,10 +545,10 @@ class CUDAGL_multi(CUDAGL):
 
 		#Load buffer for packing
 		bytesize = self.height*self.width
-		self._pack_texture_into_PBO(y_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.y_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 
 		#Load y_im (current frame) info from CPU memory
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_im_pbo))
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(self.y_im_pbo))
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_im, GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
@@ -530,10 +557,10 @@ class CUDAGL_multi(CUDAGL):
 		#y_fx###################################################################
 		########################################################################
 		floatsize = 4 #32-bit
-		self._pack_texture_into_PBO(y_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.y_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 
 		#Load y_fx (current frame) info from CPU memory
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_fx_pbo))
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(self.y_fx_pbo))
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height*floatsize, y_flow[:,:,0], GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
@@ -542,10 +569,10 @@ class CUDAGL_multi(CUDAGL):
 		#y_fy###################################################################
 		########################################################################
 
-		self._pack_texture_into_PBO(y_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.y_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
 
 		#Load y_fx (current frame) info from CPU memory
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_fy_pbo))
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(self.y_fy_pbo))
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height*floatsize, y_flow[:,:,1], GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
@@ -557,22 +584,22 @@ class CUDAGL_multi(CUDAGL):
 		#Load buffer for packing
 		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
-		self._pack_texture_into_PBO(y_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self._pack_texture_into_PBO(self.y_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
 		#Load y_m (current frame) info from CPU memory
-		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(y_m_pbo))
+		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(self.y_m_pbo))
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, self.width*self.height, y_m, GL_STREAM_DRAW)
 		glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
 
-		pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(y_tilde_pbo))
-		pycuda_y_fx_tilde_pbo = cuda_gl.BufferObject(long(y_fx_tilde_pbo))
-		pycuda_y_fy_tilde_pbo = cuda_gl.BufferObject(long(y_fy_tilde_pbo))
-		pycuda_y_m_tilde_pbo = cuda_gl.BufferObject(long(y_m_tilde_pbo))
-		pycuda_y_im_pbo = cuda_gl.BufferObject(long(y_im_pbo))
-		pycuda_y_fx_pbo = cuda_gl.BufferObject(long(y_fx_pbo))
-		pycuda_y_fy_pbo = cuda_gl.BufferObject(long(y_fy_pbo))
-		pycuda_y_m_pbo = cuda_gl.BufferObject(long(y_m_pbo))
+		self.pycuda_y_tilde_pbo = cuda_gl.BufferObject(long(self.y_tilde_pbo))
+		self.pycuda_y_fx_tilde_pbo = cuda_gl.BufferObject(long(self.y_fx_tilde_pbo))
+		self.pycuda_y_fy_tilde_pbo = cuda_gl.BufferObject(long(self.y_fy_tilde_pbo))
+		self.pycuda_y_m_tilde_pbo = cuda_gl.BufferObject(long(self.y_m_tilde_pbo))
+		self.pycuda_y_im_pbo = cuda_gl.BufferObject(long(self.y_im_pbo))
+		self.pycuda_y_fx_pbo = cuda_gl.BufferObject(long(self.y_fx_pbo))
+		self.pycuda_y_fy_pbo = cuda_gl.BufferObject(long(self.y_fy_pbo))
+		self.pycuda_y_m_pbo = cuda_gl.BufferObject(long(self.y_m_pbo))
 
 		#Loaded all into CUDA accessible memory, can test loaded with the following
 		if test:
@@ -581,12 +608,7 @@ class CUDAGL_multi(CUDAGL):
 			return None 
 
 	def jz(self, state):
-		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo
-
-		assert yp_tilde_pbo is not None
+		assert self.yp_tilde_pbo is not None
 		floatsize = 4 #number of bytes, 32bit precision...
 		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
@@ -594,20 +616,20 @@ class CUDAGL_multi(CUDAGL):
 		#state.refresh()
 		#state.render()
 
-		pycuda_yp_tilde_pbo.unregister()
-		pycuda_yp_fx_tilde_pbo.unregister()
-		pycuda_yp_fy_tilde_pbo.unregister()
-		pycuda_yp_m_tilde_pbo.unregister()
+		self.pycuda_yp_tilde_pbo.unregister()
+		self.pycuda_yp_fx_tilde_pbo.unregister()
+		self.pycuda_yp_fy_tilde_pbo.unregister()
+		self.pycuda_yp_m_tilde_pbo.unregister()
 
-		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self._pack_texture_into_PBO(self.yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
-		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+		self.pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
+		self.pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
+		self.pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
+		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Copied perturbed image data to CUDA accessible memory, run the Cuda kernel
 		return self._process_jz()
@@ -621,20 +643,20 @@ class CUDAGL_multi(CUDAGL):
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
-		im_mapping = pycuda_y_im_pbo.map()
-		fx_mapping = pycuda_y_fx_pbo.map()
-		fy_mapping = pycuda_y_fy_pbo.map()
-		m_mapping = pycuda_y_m_pbo.map()
+		im_mapping = self.pycuda_y_im_pbo.map()
+		fx_mapping = self.pycuda_y_fx_pbo.map()
+		fy_mapping = self.pycuda_y_fy_pbo.map()
+		m_mapping = self.pycuda_y_m_pbo.map()
 
-		tilde_im_mapping = pycuda_y_tilde_pbo.map()
-		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
-		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
-		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+		tilde_im_mapping = self.pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = self.pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = self.pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = self.pycuda_y_m_tilde_pbo.map()
 
-		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
-		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
-		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
-		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		p_tilde_mapping = self.pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = self.pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = self.pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = self.pycuda_yp_m_tilde_pbo.map()
 		
 		partialsum = np.zeros((nBlocks,1), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
@@ -697,12 +719,10 @@ class CUDAGL_multi(CUDAGL):
 		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
 	def jz_multi(self, state):
-		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo
+		#print 'jz_multi: pycuda_yp_tilde_pbo', pycuda_yp_tilde_pbo 
+		#print dir(pycuda_yp_tilde_pbo)
 
-		assert yp_tilde_pbo is not None
+		assert self.yp_tilde_pbo is not None
 		floatsize = 4 #number of bytes, 32bit precision...
 		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
@@ -710,20 +730,20 @@ class CUDAGL_multi(CUDAGL):
 		#state.refresh()
 		#state.render()
 
-		pycuda_yp_tilde_pbo.unregister()
-		pycuda_yp_fx_tilde_pbo.unregister()
-		pycuda_yp_fy_tilde_pbo.unregister()
-		pycuda_yp_m_tilde_pbo.unregister()
+		self.pycuda_yp_tilde_pbo.unregister()
+		self.pycuda_yp_fx_tilde_pbo.unregister()
+		self.pycuda_yp_fy_tilde_pbo.unregister()
+		self.pycuda_yp_m_tilde_pbo.unregister()
 
-		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self._pack_texture_into_PBO(self.yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
-		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
+		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
+		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
+		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Copied perturbed image data to CUDA accessible memory, run the Cuda kernel
 		return self._process_jz_multi()
@@ -737,20 +757,20 @@ class CUDAGL_multi(CUDAGL):
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
-		im_mapping = pycuda_y_im_pbo.map()
-		fx_mapping = pycuda_y_fx_pbo.map()
-		fy_mapping = pycuda_y_fy_pbo.map()
-		m_mapping = pycuda_y_m_pbo.map()
+		im_mapping = self.pycuda_y_im_pbo.map()
+		fx_mapping = self.pycuda_y_fx_pbo.map()
+		fy_mapping = self.pycuda_y_fy_pbo.map()
+		m_mapping = self.pycuda_y_m_pbo.map()
 
-		tilde_im_mapping = pycuda_y_tilde_pbo.map()
-		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
-		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
-		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+		tilde_im_mapping = self.pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = self.pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = self.pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = self.pycuda_y_m_tilde_pbo.map()
 
-		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
-		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
-		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
-		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		p_tilde_mapping = self.pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = self.pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = self.pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = self.pycuda_yp_m_tilde_pbo.map()
 		
 		partialsum = np.zeros((nBlocks*self.n,1), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
@@ -825,17 +845,7 @@ class CUDAGL_multi(CUDAGL):
 		return (sum_gpu+sum_fx_gpu+sum_fy_gpu+sum_m_gpu, jzc)
 
 	def j(self, state, deltaX, i, j):
-
-		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo
-
-		assert yp_tilde_pbo is not None
+		assert self.yp_tilde_pbo is not None
 		floatsize = 4
 		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
@@ -847,18 +857,18 @@ class CUDAGL_multi(CUDAGL):
 		state.X[i,0] -= deltaX
 
 		#Load pixel buffers
-		pycuda_yp_tilde_pbo.unregister()
-		pycuda_yp_fx_tilde_pbo.unregister()
-		pycuda_yp_fy_tilde_pbo.unregister()
-		pycuda_yp_m_tilde_pbo.unregister()
-		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
-		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+		self.pycuda_yp_tilde_pbo.unregister()
+		self.pycuda_yp_fx_tilde_pbo.unregister()
+		self.pycuda_yp_fy_tilde_pbo.unregister()
+		self.pycuda_yp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(self.yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self.pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
+		self.pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
+		self.pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
+		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Perturb second
 		state.X[j,0] += deltaX
@@ -867,18 +877,18 @@ class CUDAGL_multi(CUDAGL):
 		state.X[j,0] -= deltaX
 
 		#Load pixel buffers
-		pycuda_ypp_tilde_pbo.unregister()
-		pycuda_ypp_fx_tilde_pbo.unregister()
-		pycuda_ypp_fy_tilde_pbo.unregister()
-		pycuda_ypp_m_tilde_pbo.unregister()
-		self._pack_texture_into_PBO(ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
-		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
-		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
-		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
-		pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(ypp_m_tilde_pbo))
+		self.pycuda_ypp_tilde_pbo.unregister()
+		self.pycuda_ypp_fx_tilde_pbo.unregister()
+		self.pycuda_ypp_fy_tilde_pbo.unregister()
+		self.pycuda_ypp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(self.ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self.pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_tilde_pbo))
+		self.pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fx_tilde_pbo))
+		self.pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fy_tilde_pbo))
+		self.pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_m_tilde_pbo))
 
 		#Send to CUDA!
 		return self._process_j()
@@ -893,20 +903,20 @@ class CUDAGL_multi(CUDAGL):
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
-		tilde_im_mapping = pycuda_y_tilde_pbo.map()
-		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
-		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
-		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+		tilde_im_mapping = self.pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = self.pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = self.pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = self.pycuda_y_m_tilde_pbo.map()
 
-		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
-		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
-		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
-		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		p_tilde_mapping = self.pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = self.pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = self.pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = self.pycuda_yp_m_tilde_pbo.map()
 		
-		pp_tilde_mapping = pycuda_ypp_tilde_pbo.map()
-		pp_tilde_fx_mapping = pycuda_ypp_fx_tilde_pbo.map()
-		pp_tilde_fy_mapping = pycuda_ypp_fy_tilde_pbo.map()
-		pp_tilde_m_mapping = pycuda_ypp_m_tilde_pbo.map()
+		pp_tilde_mapping = self.pycuda_ypp_tilde_pbo.map()
+		pp_tilde_fx_mapping = self.pycuda_ypp_fx_tilde_pbo.map()
+		pp_tilde_fy_mapping = self.pycuda_ypp_fy_tilde_pbo.map()
+		pp_tilde_m_mapping = self.pycuda_ypp_m_tilde_pbo.map()
 
 		partialsum = np.zeros((nBlocks,1), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
@@ -968,16 +978,7 @@ class CUDAGL_multi(CUDAGL):
 
 	def j_multi(self, state, deltaX, ee, label):
 
-		global pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo
-
-		assert yp_tilde_pbo is not None
+		assert self.yp_tilde_pbo is not None
 		floatsize = 4
 		rgbsize = 4 #32-bit
 		bytesize = self.height*self.width
@@ -989,18 +990,18 @@ class CUDAGL_multi(CUDAGL):
 		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] - deltaX)
 
 		#Load pixel buffers
-		pycuda_yp_tilde_pbo.unregister()
-		pycuda_yp_fx_tilde_pbo.unregister()
-		pycuda_yp_fy_tilde_pbo.unregister()
-		pycuda_yp_m_tilde_pbo.unregister()
-		self._pack_texture_into_PBO(yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(yp_tilde_pbo))
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(yp_fx_tilde_pbo))
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(yp_fy_tilde_pbo))
-		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(yp_m_tilde_pbo))
+		self.pycuda_yp_tilde_pbo.unregister()
+		self.pycuda_yp_fx_tilde_pbo.unregister()
+		self.pycuda_yp_fy_tilde_pbo.unregister()
+		self.pycuda_yp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(self.yp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.yp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self.pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
+		self.pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
+		self.pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
+		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Perturb second
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] + deltaX)
@@ -1009,18 +1010,18 @@ class CUDAGL_multi(CUDAGL):
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] - deltaX)
 
 		#Load pixel buffers
-		pycuda_ypp_tilde_pbo.unregister()
-		pycuda_ypp_fx_tilde_pbo.unregister()
-		pycuda_ypp_fy_tilde_pbo.unregister()
-		pycuda_ypp_m_tilde_pbo.unregister()
-		self._pack_texture_into_PBO(ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
-		self._pack_texture_into_PBO(ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
-		self._pack_texture_into_PBO(ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
-		pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(ypp_tilde_pbo))
-		pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(ypp_fx_tilde_pbo))
-		pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(ypp_fy_tilde_pbo))
-		pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(ypp_m_tilde_pbo))
+		self.pycuda_ypp_tilde_pbo.unregister()
+		self.pycuda_ypp_fx_tilde_pbo.unregister()
+		self.pycuda_ypp_fy_tilde_pbo.unregister()
+		self.pycuda_ypp_m_tilde_pbo.unregister()
+		self._pack_texture_into_PBO(self.ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
+		self._pack_texture_into_PBO(self.ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
+		self._pack_texture_into_PBO(self.ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		self.pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_tilde_pbo))
+		self.pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fx_tilde_pbo))
+		self.pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fy_tilde_pbo))
+		self.pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_m_tilde_pbo))
 
 		#Send to CUDA!
 		return self._process_j_multi()
@@ -1035,20 +1036,20 @@ class CUDAGL_multi(CUDAGL):
 		grid_dimensions = (nBlocks, 1)
 		block_dimensions = (BLOCK_SIZE, 1, 1)
 
-		tilde_im_mapping = pycuda_y_tilde_pbo.map()
-		tilde_fx_mapping = pycuda_y_fx_tilde_pbo.map()
-		tilde_fy_mapping = pycuda_y_fy_tilde_pbo.map()
-		tilde_m_mapping = pycuda_y_m_tilde_pbo.map()
+		tilde_im_mapping = self.pycuda_y_tilde_pbo.map()
+		tilde_fx_mapping = self.pycuda_y_fx_tilde_pbo.map()
+		tilde_fy_mapping = self.pycuda_y_fy_tilde_pbo.map()
+		tilde_m_mapping = self.pycuda_y_m_tilde_pbo.map()
 
-		p_tilde_mapping = pycuda_yp_tilde_pbo.map()
-		p_tilde_fx_mapping = pycuda_yp_fx_tilde_pbo.map()
-		p_tilde_fy_mapping = pycuda_yp_fy_tilde_pbo.map()
-		p_tilde_m_mapping = pycuda_yp_m_tilde_pbo.map()
+		p_tilde_mapping = self.pycuda_yp_tilde_pbo.map()
+		p_tilde_fx_mapping = self.pycuda_yp_fx_tilde_pbo.map()
+		p_tilde_fy_mapping = self.pycuda_yp_fy_tilde_pbo.map()
+		p_tilde_m_mapping = self.pycuda_yp_m_tilde_pbo.map()
 		
-		pp_tilde_mapping = pycuda_ypp_tilde_pbo.map()
-		pp_tilde_fx_mapping = pycuda_ypp_fx_tilde_pbo.map()
-		pp_tilde_fy_mapping = pycuda_ypp_fy_tilde_pbo.map()
-		pp_tilde_m_mapping = pycuda_ypp_m_tilde_pbo.map()
+		pp_tilde_mapping = self.pycuda_ypp_tilde_pbo.map()
+		pp_tilde_fx_mapping = self.pycuda_ypp_fx_tilde_pbo.map()
+		pp_tilde_fy_mapping = self.pycuda_ypp_fy_tilde_pbo.map()
+		pp_tilde_m_mapping = self.pycuda_ypp_m_tilde_pbo.map()
 
 		partialsum = np.zeros((nBlocks*self.len_Q,1), dtype=np.float32)
 		partialsum_gpu = gpuarray.to_gpu(partialsum)
