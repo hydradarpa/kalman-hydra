@@ -485,56 +485,56 @@ class CUDAGL_multi(CUDAGL):
 		(ypp_m_tilde_pbo, pycuda_ypp_m_tilde_pbo) = self._initializePBO(data)
 		(y_m_pbo, pycuda_y_m_pbo) = self._initializePBO(data)
 
-	def _del_PBO(self, pbo):
-		glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
-		glDeleteBuffers(1, long(pbo))
-		glBindBuffer(GL_ARRAY_BUFFER, 0)
+	#def _del_PBO(self, pbo):
+	#	glBindBuffer(GL_ARRAY_BUFFER, long(pbo))
+	#	glDeleteBuffers(1, long(pbo))
+	#	glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-	def _destroy_PBOs(self):
-		global pycuda_y_tilde_pbo, y_tilde_pbo,\
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo
+	#def _destroy_PBOs(self):
+	#	global pycuda_y_tilde_pbo, y_tilde_pbo,\
+	#	 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+	#	 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+	#	 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+	#	 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+	#	 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+	#	 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+	#	 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+	#	 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+	#	 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+	#	 pycuda_y_im_pbo, y_im_pbo,\
+	#	 pycuda_y_fx_pbo, y_fx_pbo,\
+	#	 pycuda_y_fy_pbo, y_fy_pbo,\
+	#	 pycuda_y_m_pbo, y_m_pbo
 
-		print 'Deleting PBOs'
+	#	print 'Deleting PBOs'
 
-		for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
-		 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
-			try:
-				self._del_PBO(pbo)
-			except TypeError:
-				print 'Passing' 
+	#	for pbo in [y_tilde_pbo, yp_tilde_pbo, ypp_tilde_pbo,\
+	#	 y_fx_tilde_pbo, yp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 y_fy_tilde_pbo, yp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 y_m_tilde_pbo, yp_m_tilde_pbo, ypp_m_tilde_pbo]:
+	#		try:
+	#			self._del_PBO(pbo)
+	#		except TypeError:
+	#			print 'Passing' 
 
-		pycuda_y_tilde_pbo, y_tilde_pbo, \
-		 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
-		 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
-		 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
-		 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
-		 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
-		 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
-		 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
-		 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
-		 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
-		 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
-		 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
-		 pycuda_y_im_pbo, y_im_pbo,\
-		 pycuda_y_fx_pbo, y_fx_pbo,\
-		 pycuda_y_fy_pbo, y_fy_pbo,\
-		 pycuda_y_m_pbo, y_m_pbo = [None]*32
+	#	pycuda_y_tilde_pbo, y_tilde_pbo, \
+	#	 pycuda_y_fx_tilde_pbo, y_fx_tilde_pbo,\
+	#	 pycuda_y_fy_tilde_pbo, y_fy_tilde_pbo,\
+	#	 pycuda_y_m_tilde_pbo, y_m_tilde_pbo,\
+	#	 pycuda_yp_tilde_pbo, yp_tilde_pbo,\
+	#	 pycuda_yp_fx_tilde_pbo, yp_fx_tilde_pbo,\
+	#	 pycuda_yp_fy_tilde_pbo, yp_fy_tilde_pbo,\
+	#	 pycuda_yp_m_tilde_pbo, yp_m_tilde_pbo,\
+	#	 pycuda_ypp_tilde_pbo, ypp_tilde_pbo,\
+	#	 pycuda_ypp_fx_tilde_pbo, ypp_fx_tilde_pbo,\
+	#	 pycuda_ypp_fy_tilde_pbo, ypp_fy_tilde_pbo,\
+	#	 pycuda_ypp_m_tilde_pbo, ypp_m_tilde_pbo,\
+	#	 pycuda_y_im_pbo, y_im_pbo,\
+	#	 pycuda_y_fx_pbo, y_fx_pbo,\
+	#	 pycuda_y_fy_pbo, y_fy_pbo,\
+	#	 pycuda_y_m_pbo, y_m_pbo = [None]*32
 
 	def initjacobian(self, y_im_flip, y_flow, y_m_flip, test = False):
 		#Copy y_im, y_fx, y_fy to GPU and copy y_tilde, y_fx_tilde, y_fy_tilde to GPU 

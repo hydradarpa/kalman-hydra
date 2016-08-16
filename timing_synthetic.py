@@ -43,7 +43,7 @@ nF = video.shape[2]
 data = np.zeros((len(gridsizes), 11))
 
 for idx, gridsize in enumerate(gridsizes):
-	idx = 1; gridsize = 60
+	idx = 1; gridsize = 30
 	print 'Running KF for gridsize =', gridsize
 	flowframe = flow[:,:,:,0]
 	frame = video[:,:,0]
@@ -52,7 +52,7 @@ for idx, gridsize in enumerate(gridsizes):
 	mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 	distmesh.createMesh(ctrs, h, frame, plot=False)
 	
-	kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda)
+	kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, multi = False)
 	kf.state.render()
 	
 	count = 0
@@ -62,7 +62,7 @@ for idx, gridsize in enumerate(gridsizes):
 		frame = video[:,:,i]
 		mask = (frame > 0).astype(np.uint8)
 		flowframe = flow[:,:,:,i]
-		time.sleep(0.3)
+		time.sleep(1)
 		kf.compute(frame, flowframe, mask)
 
 	kf.state.renderer.cudagl._destroy_PBOs()

@@ -681,8 +681,9 @@ class KalmanFilter:
 		ddeps = 1e-1
 		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
 		p = self.state.vertices()
+		p_orig = p.copy()
 		d = fd(p)
-		ix = d>0
+		ix = d>1
 		for idx in range(10):
 			if ix.any():
 				dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
@@ -690,6 +691,10 @@ class KalmanFilter:
 				dgrad2 = dgradx**2 + dgrady**2
 				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
 		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
+
+		#Update velocities also... or else it might crash...
+		self.state.X[(2*self.N):] += np.reshape(p - p_orig, (-1,1))
+
 
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
