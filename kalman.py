@@ -135,6 +135,7 @@ class KFState:
 		for i in range(len(a)):
 			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
 		nz = abs(self.sineface) > 0.06
+		print 'Removing %d faces for being too flat' % np.sum(nz == 0)
 		self.sineface = self.sineface[nz]
 		self.ori = self.ori[nz]
 		self.tri = self.tri[nz]
@@ -772,7 +773,7 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 10000):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
 		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices

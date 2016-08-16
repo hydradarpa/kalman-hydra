@@ -203,6 +203,7 @@ class Renderer(app.Canvas):
 		self.force = force
 		self.fmin = -.5
 		self.fmax = .5
+		self.activeface = 0 
 		self.state = 'texture'
 		self.tri = distmesh.t 
 		self.I = 3*len(self.tri)
@@ -249,6 +250,10 @@ class Renderer(app.Canvas):
 		self._program_mask = gloo.Program(VERT_SHADER, frag_shader_mask(self.F))
 		self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
 		self._program_mask.bind(self._vbo)
+
+		self._program_outline = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
+		self._program_outline['u_colors'] = self.outlinecolors
+		self._program_outline.bind(self._vbo)
 
 
 		#Create FBOs, attach the color buffer and depth buffer
@@ -325,6 +330,14 @@ class Renderer(app.Canvas):
 		for i in range(len(colors)):
 			self._program_mask['u_colors[%d]'%i] = colors[i,:]
 
+	def _updatelinecolors(self, colors):
+		for i in range(len(colors)):
+			self._program_lines['u_colors[%d]'%i] = colors[i,:]
+
+	def _updateoutlinecolors(self, colors):
+		for i in range(len(colors)):
+			self._program_outline['u_colors[%d]'%i] = colors[i,:]
+
 	def draw(self, event):
 		#Turn on additive blending
 		gloo.set_state('additive')
@@ -342,15 +355,18 @@ class Renderer(app.Canvas):
 			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 			#print self._program_mask['u_colors']#self.randfacecolors[:,:,0]
 			self._program_mask.draw('triangles', self.indices_buffer)			
-		else:
+		elif self.state == 'overlay':
 			self._program_red['texture1'] = self.current_texture
 			self._program_red.bind(self._quad)
 			self._program_red.draw('triangles', self.quad_buffer)
 			self._program_green.bind(self._vbo)
 			self._program_green['texture1'] = self.init_texture
 			self._program_green.draw('triangles', self.indices_buffer)
+		else:
+			self._program_outline.bind(self._vbo)
+			self._program_outline.draw('lines', self.outline_buffer)
 		#Draw wireframe, too
-		if self.state != 'raw':
+		if self.state != 'raw' and self.state != 'outline':
 			self._program_lines.draw('lines', self.outline_buffer)
 
 	def on_key_press(self, event):
@@ -363,12 +379,54 @@ class Renderer(app.Canvas):
 				self.state = 'texture'
 			elif self.state == 'texture':
 				self.state = 'mask'
+			elif self.state == 'mask':
+				self.state = 'outline'
 			else:
 				self.state = 'flow'
-			self.title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
+			self.title = 'Hydra tracker. Displaying %s state (space to toggle, q to quit)' % self.state
 			self.update()
-		if event.key in ['s']:
+			if self.state == 'outline':
+				self.title += 'Face: %d' % self.activeface 
+
+		#Shift the active face around a bit...
+		if event.key in ['a', 's', 'd', 'w']:
+			vertices = self.vertices 
+			[t1, t2, t3] = self.tri[self.activeface,:]
+			if event.key in ['a']:
+				vertices[t1,0] -= 2
+				vertices[t2,0] -= 2
+				vertices[t3,0] -= 2
+			if event.key in ['d']:
+				vertices[t1,0] += 2
+				vertices[t2,0] += 2
+				vertices[t3,0] += 2
+			if event.key in ['w']:
+				vertices[t1,1] -= 2
+				vertices[t2,1] -= 2
+				vertices[t3,1] -= 2
+			if event.key in ['s']:
+				vertices[t1,1] += 2
+				vertices[t2,1] += 2
+				vertices[t3,1] += 2
+			self.update_vertex_buffer(vertices, self.velocities, 1)
+
+		if event.key in ['h']:
 			self.screenshot()
+		if event.key in ['q']:
+			self.close()
+		if event.key in ['t']:
+			self.activeface += 1 
+			if self.activeface >= len(self.tri):
+				self.activeface = 0 
+			for idx in range(len(self.tri)):
+				if idx == self.activeface:
+					o = [1.0, 0.0, 0.0, 1.0]
+				else:
+					o = [0.0, 1.0, 0.0, 0.5]
+				self.outlinecolors[3*idx,:] = o
+				self.outlinecolors[3*idx+1,:] = o
+				self.outlinecolors[3*idx+2,:] = o
+			self._updateoutlinecolors(self.outlinecolors)
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
 		with self._fbo2:
@@ -437,7 +495,9 @@ class Renderer(app.Canvas):
 		e_m = np.sum(np.multiply(255*y_m-m[:,:,0], 255*y_m-m[:,:,0]))
 		return e_im, e_fx, e_fy, e_m, fx, fy
 
-	def update_vertex_buffer(self, vertices, velocities, multi_idx, hess = False):
+	def update_vertex_buffer(self, vertices, velocities, multi_idx = -1, hess = False):
+		self.vertices = vertices 
+		self.velocities = velocities 
 		verdata = np.zeros((self.nP,3))
 		veldata = np.zeros((self.nP,3))
 		#rescale
@@ -457,8 +517,8 @@ class Renderer(app.Canvas):
 		self._program_mask.bind(self._vbo)
 
 		#Update color of bars if update based on force available
-		if self.force is not None:
-			for idx, t in enumerate(self.tri):
+		for idx, t in enumerate(self.tri):
+			if self.force is not None:
 				#First edge
 				pt = vertices[t[0],:]-vertices[t[1],:]
 				self.l[3*idx,0] = np.linalg.norm(pt)
@@ -481,8 +541,9 @@ class Renderer(app.Canvas):
 				c = min(max(c, 0), 1)
 				self.linecolors[3*idx+2,:] = [0, 0, c, 1]
 	
-			#Update uniform data
-			self._program_lines['u_colors'] = self.linecolors
+		#Update uniform data
+		self._updatelinecolors(self.linecolors)
+
 		#self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,multi_idx])
 		if not hess:
 			self._updatemaskpalette(np.squeeze(self.facecolors[:,:,multi_idx]))
@@ -492,6 +553,8 @@ class Renderer(app.Canvas):
 
 	#Load mesh data
 	def loadMesh(self, vertices, velocities, triangles, nx, labels, labels_hess):
+		self.vertices = vertices 
+		self.velocities = velocities 
 		# Create vetices and texture coords, combined in one array for high performance
 		self.nP = vertices.shape[0]
 		self.nT = triangles.shape[0]
@@ -535,6 +598,8 @@ class Renderer(app.Canvas):
 		self.linecolors = np.zeros((3*len(triangles),4))		
 		self.linecolors[:,2] = 0.5
 		self.linecolors[:,3] = 1.0
+
+		self.outlinecolors = np.zeros((3*len(triangles),4))		
 
 		#Setup multiperturbation face colors
 		self.facecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
