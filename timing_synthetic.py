@@ -23,8 +23,8 @@ start = nx//3
 end = 2*nx//3
 nI = 5
 
-gridsizes = [80, 60, 40, 20, 10, 8, 6, 4]
-#gridsizes = [80]
+#gridsizes = [80, 60, 40, 20, 10, 8, 6, 4]
+gridsizes = [80, 60]
 nF = video.shape[2]
 
 #In data, for each grid size, we store:
@@ -43,7 +43,7 @@ nF = video.shape[2]
 data = np.zeros((len(gridsizes), 11))
 
 for idx, gridsize in enumerate(gridsizes):
-	idx = 1; gridsize = 30
+	idx = 1; gridsize = 60
 	print 'Running KF for gridsize =', gridsize
 	flowframe = flow[:,:,:,0]
 	frame = video[:,:,0]

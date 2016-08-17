@@ -141,6 +141,20 @@ class KFState:
 		self.tri = self.tri[nz]
 		distmesh.t = self.tri 
 
+		#Remove distmesh.bars and distmesh.L that are orphaned by faces being removed
+		allbars = []
+		for [v1, v2, v3] in self.tri:
+			allbars += [[min(v1, v2), max(v1,v2)]]
+			allbars += [[min(v2, v3), max(v2,v3)]]
+			allbars += [[min(v1, v3), max(v1,v3)]]
+		allbars = np.array(allbars)
+		allbars = unique2d(allbars)
+		t_allbars = [tuple(i) for i in allbars]
+		t_dmbars = [tuple(i) for i in distmesh.bars]
+		nz = np.array([i in t_allbars for i in t_dmbars])
+		distmesh.bars = distmesh.bars[nz, :]
+		distmesh.L = distmesh.L[nz]
+
 		#Form state vector
 		self.X = np.vstack((self._ver.reshape((-1,1)), self._vel.reshape((-1,1))))
 		e = np.eye(2*self.N)
@@ -179,7 +193,7 @@ class KFState:
 
 		#Compute initial edge lengths...
 		self.l0 = self.lengths()
-		self.L = distmesh.L 
+		self.L = self.lengths()
 
 		########################################################################
 		#Compute partitions for jacobian multi-rendering########################
@@ -796,9 +810,9 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 4, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e1):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e1):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
-		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, nI = nI)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
