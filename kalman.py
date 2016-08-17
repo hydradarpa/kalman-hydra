@@ -744,7 +744,7 @@ class KalmanFilter:
 
 class IteratedKalmanFilter(KalmanFilter):
 	#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 4, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e10):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e10):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.nI = nI
 		self.reltol = 1e-4
@@ -810,13 +810,13 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e1):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e1):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
 		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, nI = nI)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
-		self.kappa = -4
+		self.kappa = -1
 		self.deltat = 0.05
 		self.maxiter = 1000
 		self.tol = 1e-4
@@ -885,6 +885,7 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 		deltat = self.deltat
 		e = np.eye(2*n)
 		dfdy = self._jacobian()
+		#Should the deltat be here... since we're time stepping over units of 1, not deltat
 		F = np.bmat([[e, deltat*e], [deltat*dfdy/M, e]])
 		return F 
 
