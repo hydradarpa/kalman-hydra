@@ -371,6 +371,15 @@ class KFState:
 	def __del__(self):
 		self.renderer.__del__()
 
+	def update_orientation(self):
+		ver = self.vertices()
+		a = ver[self.tri[:,1],:] - ver[self.tri[:,0],:]
+		b = ver[self.tri[:,2],:] - ver[self.tri[:,0],:]
+		self.ori = np.sign(np.cross(a,b))
+		self.sineface = np.zeros(len(a))
+		for i in range(len(a)):
+			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
+
 	def get_flow(self):
 		return self.renderer.get_flow()
 
@@ -638,14 +647,14 @@ class KalmanFilter:
 		else:
 			y_flow_mask = y_flow
 		pt = timeit(self.predict, number = 1)
-		#jt = timeit(lambda: self.projectmask(y_m), number = 1)
+		jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		self.predtime += pt
 		self.updatetime += ut
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
-		#print 'Projection time:', jt 
+		print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		#Save state of each frame
 		if imageoutput is not None:
@@ -721,7 +730,7 @@ class KalmanFilter:
 
 class IteratedKalmanFilter(KalmanFilter):
 	#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 4, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e10):
 		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		self.nI = nI
 		self.reltol = 1e-4
@@ -733,8 +742,10 @@ class IteratedKalmanFilter(KalmanFilter):
 		print '-- updating'
 		X = self.state.X
 		X_orig = X.copy()
+		X_old = X.copy()
 		W = self.state.W
 		W_orig = W.copy()
+		W_old = W.copy()
 		invW_orig = np.linalg.inv(W)
 		invW = np.linalg.inv(W)
 
@@ -754,6 +765,15 @@ class IteratedKalmanFilter(KalmanFilter):
 			#X = X + np.dot(W,Hz)
 			self.state.X = X
 			self.state.W = W 
+
+			#Check still valid position, if not, use most recent valid pos
+			self.state.update_orientation()
+			if np.any(self.state.ori < 0):
+				self.state.X = X_old 
+				self.state.W = W_old 
+				print '** Mesh inconsistent ** Reverting to last good state and continuing'
+				break 
+
 			e_im, e_fx, e_fy, e_m, fx, fy = self.error(y_im, y_flow, y_m)
 			enew = np.sqrt(e_im*e_im + e_fx*e_fx + e_fy*e_fy + e_m*e_m)
 			sys.stdout.write('-- e_im: %d, e_fx: %d, e_fy: %d, e_m: %d\n'%(e_im, e_fx, e_fy, e_m))
@@ -762,6 +782,9 @@ class IteratedKalmanFilter(KalmanFilter):
 				print 'Reached error tolerance.'
 				break 
 			eold = enew
+
+			X_old = X.copy()
+			W_old = W.copy()
 
 		#Determine updates per component for diagnostics 
 		self.tv = np.dot(W, np.squeeze(Hz_components[:,0]))
@@ -773,14 +796,14 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1000, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 4, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e1):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
 		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
-		self.kappa = -1
-		self.deltat = 0.1
+		self.kappa = -4
+		self.deltat = 0.05
 		self.maxiter = 1000
 		self.tol = 1e-4
 		#Force equation

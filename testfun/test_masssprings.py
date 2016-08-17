@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plot 
 
 cuda = True
-gridsize = 80
+gridsize = 30
 threshold = 9
 name = 'test_data'
 

@@ -252,9 +252,8 @@ class Renderer(app.Canvas):
 		self._program_mask.bind(self._vbo)
 
 		self._program_outline = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
-		self._program_outline['u_colors'] = self.outlinecolors
 		self._program_outline.bind(self._vbo)
-
+		self._setoutlinecolors()
 
 		#Create FBOs, attach the color buffer and depth buffer
 		self.shape = (nx, nx)
@@ -383,7 +382,7 @@ class Renderer(app.Canvas):
 				self.state = 'outline'
 			else:
 				self.state = 'flow'
-			self.title = 'Hydra tracker. Displaying %s state (space to toggle, q to quit)' % self.state
+			self.title = 'Hydra tracker. Displaying %s state (space to toggle, q to quit).' % self.state
 			if self.state == 'outline':
 				self.title += ' Face: %d' % self.activeface 
 			self.update()
@@ -419,15 +418,18 @@ class Renderer(app.Canvas):
 			self.activeface += 1 
 			if self.activeface >= len(self.tri):
 				self.activeface = 0 
-			for idx in range(len(self.tri)):
-				if idx == self.activeface:
-					o = [1.0, 0.0, 0.0, 1.0]
-				else:
-					o = [0.0, 1.0, 0.0, 0.5]
-				self.outlinecolors[3*idx,:] = o
-				self.outlinecolors[3*idx+1,:] = o
-				self.outlinecolors[3*idx+2,:] = o
-			self._updateoutlinecolors(self.outlinecolors)
+			self._setoutlinecolors()
+
+	def _setoutlinecolors(self):
+		for idx in range(len(self.tri)):
+			if idx == self.activeface:
+				o = [1.0, 0.0, 0.0, 1.0]
+			else:
+				o = [0.0, 1.0, 0.0, 0.5]
+			self.outlinecolors[3*idx,:] = o
+			self.outlinecolors[3*idx+1,:] = o
+			self.outlinecolors[3*idx+2,:] = o
+		self._updateoutlinecolors(self.outlinecolors)
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
 		with self._fbo2:

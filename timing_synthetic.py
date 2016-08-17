@@ -52,7 +52,7 @@ for idx, gridsize in enumerate(gridsizes):
 	mask, ctrs, h = findObjectThreshold(frame, threshold = threshold)
 	distmesh.createMesh(ctrs, h, frame, plot=False)
 	
-	kf = IteratedKalmanFilter(distmesh, frame, flowframe, cuda, multi = False)
+	kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda, multi = True)
 	kf.state.render()
 	
 	count = 0
@@ -65,8 +65,6 @@ for idx, gridsize in enumerate(gridsizes):
 		time.sleep(1)
 		kf.compute(frame, flowframe, mask)
 
-	kf.state.renderer.cudagl._destroy_PBOs()
-	kf.__del__()
 
 	#Extract stats
 	meshpts = stats.meshpts 
@@ -85,6 +83,8 @@ for idx, gridsize in enumerate(gridsizes):
 					hesspartitions, ave_nrenders, ave_jacrenders, ave_hessrenders,\
 					ave_theoryrenders, ave_jac_time, ave_hess_time]
 
+	kf.state.renderer.cudagl._destroy_PBOs()
+	kf.__del__()
 	stats.reset()
 
 #Plot data

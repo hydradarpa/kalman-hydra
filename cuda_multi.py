@@ -143,8 +143,8 @@ class CUDAGL_multi(CUDAGL):
 			        face = m * f + (!m && mp) * fp;
 
 			        if ((m || mp) && (face < (256*256-1))) {
-				        if (face > {{ num_vertices }})
-							printf("histogram jz: Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+				        //if (face > {{ num_vertices }})
+						//	printf("histogram jz: Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
 						//if (face == 34) {
 						//	printf("Found face 34. ");
 						//}
@@ -235,8 +235,8 @@ class CUDAGL_multi(CUDAGL):
 			        face = m*f + (!m)*(mp*fp + (!mp && mpp)*fpp);
 
 			        if ((m || mp || mpp) && (face < (256*256-1))) {
-				        if (face > {{ num_q }})
-							printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
+				        //if (face > {{ num_q }})
+						//	printf("Block: %d, Thread: %d, Face: %d. ",  blockIdx.x, threadIdx.x, face);
 
 						atomicAdd(&gmem[face], ps);
 						atomicAdd(&gmem_fx[face], ps_fx);
@@ -740,10 +740,10 @@ class CUDAGL_multi(CUDAGL):
 		self._pack_texture_into_PBO(self.yp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(self.yp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
 
-		pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
-		pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
-		pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
-		pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
+		self.pycuda_yp_tilde_pbo = cuda_gl.BufferObject(long(self.yp_tilde_pbo))
+		self.pycuda_yp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fx_tilde_pbo))
+		self.pycuda_yp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.yp_fy_tilde_pbo))
+		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Copied perturbed image data to CUDA accessible memory, run the Cuda kernel
 		return self._process_jz_multi()
