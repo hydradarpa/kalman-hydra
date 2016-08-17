@@ -184,11 +184,12 @@ void main() {
 def frag_shader_lines(I):
 	FRAG_SHADER_LINES = """
 	#version 330
-	uniform vec4 u_colors[%d];
+	uniform sampler1D texture1;
+	float nComp = %d;
 	out vec4 fragmentColor;
 	void main()
 	{
-		fragmentColor = u_colors[gl_PrimitiveID];
+		fragmentColor = texture(texture1, (gl_PrimitiveID/3)/nComp);
 	}
 	""" % I
 	return FRAG_SHADER_LINES
@@ -206,7 +207,7 @@ class Renderer(app.Canvas):
 		self.activeface = 0 
 		self.state = 'texture'
 		self.tri = distmesh.t 
-		self.I = 3*len(self.tri)
+		self.I = len(self.tri)
 		self.F = len(self.tri)
 		self.n = distmesh.p.shape[0]
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
@@ -231,10 +232,11 @@ class Renderer(app.Canvas):
 		self._program['texture1'] = self.init_texture
 		self._program.bind(self._vbo)
 		#self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
+
 		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
 		#for i in range(self.I):
 		#	self._program_lines[u'u_colors[%d]'%i] = tuple(self.linecolors[i,:])
-		self._program_lines['u_colors'] = self.linecolors
+		self._program_lines['texture1'] = self.linecolors.astype(np.uint8)
 		self._program_lines.bind(self._vbo)
 		self._program_flowx = gloo.Program(VERT_SHADER, FRAG_SHADER_FLOWX)
 		self._program_flowx['u_color'] = 1, 0, 0, 1
@@ -330,12 +332,14 @@ class Renderer(app.Canvas):
 			self._program_mask['u_colors[%d]'%i] = colors[i,:]
 
 	def _updatelinecolors(self, colors):
-		for i in range(len(colors)):
-			self._program_lines['u_colors[%d]'%i] = colors[i,:]
+		self._program_lines['texture1'] = colors.astype(np.uint8)
+		#for i in range(len(colors)):
+		#	self._program_lines['u_colors[%d]'%i] = colors[i,:]
 
 	def _updateoutlinecolors(self, colors):
-		for i in range(len(colors)):
-			self._program_outline['u_colors[%d]'%i] = colors[i,:]
+		self._program_outline['texture1'] = colors.astype(np.uint8)
+		#for i in range(len(colors)):
+		#	self._program_outline['u_colors[%d]'%i] = colors[i,:]
 
 	def draw(self, event):
 		#Turn on additive blending
@@ -423,12 +427,10 @@ class Renderer(app.Canvas):
 	def _setoutlinecolors(self):
 		for idx in range(len(self.tri)):
 			if idx == self.activeface:
-				o = [1.0, 0.0, 0.0, 1.0]
+				o = [255, 0, 0, 255]
 			else:
-				o = [0.0, 1.0, 0.0, 0.5]
-			self.outlinecolors[3*idx,:] = o
-			self.outlinecolors[3*idx+1,:] = o
-			self.outlinecolors[3*idx+2,:] = o
+				o = [0, 255, 0, 128]
+			self.outlinecolors[idx,:] = o
 		self._updateoutlinecolors(self.outlinecolors)
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
@@ -527,22 +529,22 @@ class Renderer(app.Canvas):
 				self.l[3*idx,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx,0], self.l0[3*idx,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
-				c = min(max(c, 0), 1)
-				self.linecolors[3*idx,:] = [0, 0, c, 1]
+				c = 255*min(max(c, 0), 1)
+				self.linecolors[3*idx,:] = [0, 0, c, 255]
 				#Second edge
 				pt = vertices[t[1],:]-vertices[t[2],:]
 				self.l[3*idx+1,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+1,0], self.l0[3*idx+1,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+1,:] = [0, 0, c, 1]
+				self.linecolors[3*idx+1,:] = [0, 0, c, 255]
 				#Third edge
 				pt = vertices[t[2],:]-vertices[t[0],:]
 				self.l[3*idx+2,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+2,0], self.l0[3*idx+2,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+2,:] = [0, 0, c, 1]
+				self.linecolors[3*idx+2,:] = [0, 0, c, 255]
 	
 		#Update uniform data
 		self._updatelinecolors(self.linecolors)
@@ -599,10 +601,10 @@ class Renderer(app.Canvas):
 			l0[3*idx+2,0] = np.linalg.norm(pt)
 
 		self.linecolors = np.zeros((3*len(triangles),4))		
-		self.linecolors[:,2] = 0.5
-		self.linecolors[:,3] = 1.0
+		self.linecolors[:,2] = 128
+		self.linecolors[:,3] = 255
 
-		self.outlinecolors = np.zeros((3*len(triangles),4))		
+		self.outlinecolors = np.zeros((len(triangles),4))		
 
 		#Setup multiperturbation face colors
 		self.facecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
