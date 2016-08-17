@@ -161,7 +161,10 @@ class KFState:
 		z = np.zeros((2*self.N,2*self.N))
 		self.F = np.bmat([[e, e], [z, e]])
 		self.Weps = eps_F * np.bmat([[e/4, e/2], [e/2, e]])
-		self.W = np.eye(self._vel.shape[0]*4)
+
+		#self.W = np.eye(self._vel.shape[0]*4)
+		#Initial position is certain, velocity is uncertain
+		self.W = np.bmat([[1e-2*e,z],[z,e]])
 
 		#Note connectivity of vertices for efficient computing of Hessian H
 		Jv = np.eye(self.N)
