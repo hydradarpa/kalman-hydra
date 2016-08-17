@@ -42,7 +42,24 @@ class Statistics:
 		self.hessincsparse = [0]
 
 	def reset(self):
-		self.__init__()
+		self.niter = 0
+		self.meshpts = 0
+		self.gridsize = 0
+		self.jacobianpartitions = 0
+		self.hessianpartitions = 0
+		self.nzj = 0
+
+		self.jacobianrenderstc[0] = 0
+		self.jacobianrenderstc[1] = 0
+		self.hessianrenderstc[0] = 0
+		self.hessianrenderstc[1] = 0
+		self.renders[0] = 0
+		self.statepredtime[0] = 0
+		self.stateupdatetc[0] = 0
+		self.stateupdatetc[1] = 0
+		self.hessinc[0] = 0
+		self.jacinc[0] = 0
+		self.hessincsparse[0] = 0
 
 #Decorators to count update times... uses time module so not as accurate as profiling
 def timer(runtimer):
@@ -77,6 +94,8 @@ def timer_counter(tc, inc):
 			#print counter 
 			tc[0] += et - st 
 			tc[1] += inc[0]
+			#if inc[0] == 1:
+			#	print 'Counting updatetc'
 			return ret
 		return func_wrapper
 	return counter_wrapper
@@ -939,26 +958,3 @@ class IteratedMSKalmanFilter(IteratedKalmanFilter):
 				self.state.X = xp
 				print '      iteration:', n, 'relative change:', norm(xo-xp)/norm(xp)
 				n += 1
-
-#Mass-spring Kalman filter
-class MSKalmanFilter(KalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
-		#Mass of vertices
-		self.M = 1
-		#Spring stiffness
-		self.kappa = 1
-
-	@timer(stats.statepredtime)
-	def predict(self):
-		print '-- predicting'
-		X = self.state.X 
-		self.orig_x = X.copy()
-		F = self.state.F 
-		Weps = self.state.Weps
-		W = self.state.W 
-
-		#Prediction equations 
-		self.state.X = np.dot(F,X)
-		self.pred_x = self.state.X.copy()
-		self.state.W = np.dot(F, np.dot(W,F.T)) + Weps 
