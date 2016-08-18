@@ -3,7 +3,7 @@ import sys
 from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
 from synth import test_data, test_data_texture, test_data_image
-from kalman import MSKalmanFilter, IteratedMSKalmanFilter, stats, IteratedKalmanFilter
+from kalman import IteratedMSKalmanFilter, stats, IteratedKalmanFilter
 from renderer import VideoStream
 
 import pdb 
@@ -12,6 +12,8 @@ import cv2
 
 import numpy as np 
 import matplotlib.pyplot as plot 
+import seaborn as sns 
+import pandas as pd
 
 cuda = True
 threshold = 9
@@ -23,8 +25,8 @@ start = nx//3
 end = 2*nx//3
 nI = 5
 
-#gridsizes = [80, 60, 40, 20, 10, 8, 6, 4]
-gridsizes = [80, 60]
+gridsizes = [80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20]
+#gridsizes = [80, 60]
 nF = video.shape[2]
 
 #In data, for each grid size, we store:
@@ -43,7 +45,7 @@ nF = video.shape[2]
 data = np.zeros((len(gridsizes), 11))
 
 for idx, gridsize in enumerate(gridsizes):
-	idx = 1; gridsize = 60
+	#idx = 1; gridsize = 40
 	print 'Running KF for gridsize =', gridsize
 	flowframe = flow[:,:,:,0]
 	frame = video[:,:,0]
@@ -87,4 +89,36 @@ for idx, gridsize in enumerate(gridsizes):
 	kf.__del__()
 	stats.reset()
 
+#Save data
+np.savez('./timing_synthetic1.npz', data, gridsizes)
+
+#Convert to pandas dataframe
+names = ['meshpts','ave_update_time','ave_pred_time','jacpartitions','hesspartitions','ave_nrenders','ave_jacrenders','ave_hessrenders','ave_theoryrenders','ave_jac_time','ave_hess_time']
+df = pd.DataFrame(data, columns = names, index = gridsizes)
+
 #Plot data
+#Plot total renders per number of nodes
+f,(ax1, ax2, ax3, ax4, ax5, ax6) = plot.subplots(6)
+#sns.pointplot('meshpts', 'ave_nrenders', data=df, join=False, ax = ax1)
+#sns.pointplot('meshpts', 'ave_update_time', data=df, join=False, ax = ax2)
+#sns.pointplot('meshpts', 'ave_pred_time', data=df, join=False, ax = ax3)
+#sns.pointplot('meshpts', 'jacpartitions', data=df, join=False, ax = ax4)
+#sns.pointplot('meshpts', 'hesspartitions', data=df, join=False, ax = ax5)
+#sns.pointplot('meshpts', 'ave_theoryrenders', data=df, join=False, ax = ax6)
+plot.subplot(611)
+plot.plot(df.meshpts, df.ave_nrenders)
+plot.subplot(612)
+plot.plot(df.meshpts, df.ave_update_time)
+plot.subplot(613)
+plot.plot(df.meshpts, df.ave_pred_time)
+plot.subplot(614)
+plot.plot(df.meshpts, df.jacpartitions)
+plot.subplot(615)
+plot.plot(df.meshpts, df.hesspartitions)
+plot.subplot(616)
+plot.plot(df.meshpts, df.ave_theoryrenders)
+
+plot.show()
+
+
+
