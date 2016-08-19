@@ -832,6 +832,23 @@ class FlowStream:
 			ret = False 
 		return ret, flowframe
 
+	def peek(self):
+		flowframe = None 
+		fn_x = self.path + ("_%03d"%self.frame) + "_x.mat"
+		fn_y = self.path + ("_%03d"%self.frame) + "_y.mat"
+		try:
+			self.flowx = readFileToMat(fn_x)
+			self.flowy = readFileToMat(fn_y)
+			nx = self.flowx.shape[0]
+			ny = self.flowx.shape[1]
+			flowframe = np.zeros((nx, ny, 2), dtype = np.float32)
+			flowframe[:,:,0] = self.flowx 
+			flowframe[:,:,1] = self.flowy
+			ret = True
+		except IOError:
+			ret = False 
+		return ret, flowframe
+
 	def draw(self):
 		"""Draw current flow field"""
 		#gray_flowx = 255.*(self.flowx-np.min(self.flowx))/(np.max(self.flowx)-np.min(self.flowx))
@@ -853,4 +870,5 @@ class FlowStream:
 		if isfile(fn_x) and isfile(fn_y):
 			return True 
 		else:
+			print 'Cannot find', fn_x, 'or', fn_y 
 			return False 
