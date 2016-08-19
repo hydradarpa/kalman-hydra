@@ -101,3 +101,5 @@ plt.legend(loc='upper left')
 plt.ylabel('RMS')
 plt.xlabel('Frame')
 plt.savefig('./synthetictests/' + name + '/' + ff + '_' + notes + '_pred_rms.eps')
+
+print 'run make_overlay_video to make a video of the resulting tracking'

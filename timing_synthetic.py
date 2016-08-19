@@ -93,32 +93,47 @@ for idx, gridsize in enumerate(gridsizes):
 np.savez('./timing_synthetic1.npz', data, gridsizes)
 
 #Convert to pandas dataframe
+#Reload data
+import numpy as np 
+import pandas as pd 
+import matplotlib.pyplot as plot 
+
+r = np.load('./timing_synthetic1.npz')
+data = r['arr_0']
+gridsizes = r['arr_1']
+
 names = ['meshpts','ave_update_time','ave_pred_time','jacpartitions','hesspartitions','ave_nrenders','ave_jacrenders','ave_hessrenders','ave_theoryrenders','ave_jac_time','ave_hess_time']
 df = pd.DataFrame(data, columns = names, index = gridsizes)
 
 #Plot data
 #Plot total renders per number of nodes
-f,(ax1, ax2, ax3, ax4, ax5, ax6) = plot.subplots(6)
-#sns.pointplot('meshpts', 'ave_nrenders', data=df, join=False, ax = ax1)
-#sns.pointplot('meshpts', 'ave_update_time', data=df, join=False, ax = ax2)
-#sns.pointplot('meshpts', 'ave_pred_time', data=df, join=False, ax = ax3)
-#sns.pointplot('meshpts', 'jacpartitions', data=df, join=False, ax = ax4)
-#sns.pointplot('meshpts', 'hesspartitions', data=df, join=False, ax = ax5)
-#sns.pointplot('meshpts', 'ave_theoryrenders', data=df, join=False, ax = ax6)
-plot.subplot(611)
-plot.plot(df.meshpts, df.ave_nrenders)
-plot.subplot(612)
-plot.plot(df.meshpts, df.ave_update_time)
-plot.subplot(613)
-plot.plot(df.meshpts, df.ave_pred_time)
-plot.subplot(614)
-plot.plot(df.meshpts, df.jacpartitions)
-plot.subplot(615)
-plot.plot(df.meshpts, df.hesspartitions)
-plot.subplot(616)
-plot.plot(df.meshpts, df.ave_theoryrenders)
+#f,(ax1, ax2, ax3, ax4, ax5, ax6) = plot.subplots(6)
 
-plot.show()
+plot.clf()
+plot.plot(df.meshpts, df.ave_nrenders, label = 'per update iteration multipert renders')
+plot.plot(df.meshpts, df.ave_theoryrenders, label = 'per update iteration singlepert renders')
+plot.xlabel('Mesh points')
+plot.ylabel('number of render operations')
+plot.legend(loc = 'upper left')
+plot.savefig('./analysis/timing_synthetic_renders.eps')
 
+plot.clf()
+plot.plot(df.meshpts, df.ave_update_time, label = 'Ave. per update iteration time')
+plot.plot(df.meshpts, df.ave_pred_time, label = 'Ave. per prediction iteration time')
+plot.xlabel('Mesh points')
+plot.ylabel('time (s)')
+plot.legend(loc = 'upper left')
+plot.savefig('./analysis/timing_synthetic_timing.eps')
 
+plot.clf()
+plot.plot(df.meshpts, df.jacpartitions, label = 'Multi-perturbation jacobian partitions')
+plot.plot(df.meshpts, df.hesspartitions, label = 'Multi-perturbation hessian partitions')
+plot.legend(loc = 'upper left')
+plot.xlabel('Mesh points')
+plot.ylabel('number of paritions')
+plot.savefig('./analysis/timing_synthetic_partitions.eps')
 
+#savefig(fname, dpi=None, facecolor='w', edgecolor='w',
+#        orientation='portrait', papertype=None, format=None,
+#        transparent=False, bbox_inches=None, pad_inches=0.1,
+#        frameon=None)
