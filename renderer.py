@@ -181,6 +181,19 @@ void main() {
 }
 """
 
+def frag_shader_force(I):
+	FRAG_SHADER_FORCE = """
+	#version 330
+	uniform sampler1D texture1;
+	float nComp = %d;
+	out vec4 fragmentColor;
+	void main()
+	{
+		fragmentColor = texture(texture1, (gl_PrimitiveID+1)/(nComp+1));
+	}
+	""" % I
+	return FRAG_SHADER_FORCE
+
 def frag_shader_lines(I):
 	FRAG_SHADER_LINES = """
 	#version 330
@@ -189,7 +202,7 @@ def frag_shader_lines(I):
 	out vec4 fragmentColor;
 	void main()
 	{
-		fragmentColor = texture(texture1, (gl_PrimitiveID/3)/nComp);
+		fragmentColor = texture(texture1, (gl_PrimitiveID/3+1)/(nComp+1));
 	}
 	""" % I
 	return FRAG_SHADER_LINES
@@ -202,8 +215,8 @@ class Renderer(app.Canvas):
 		self.cuda = cuda
 		self.showtracking = showtracking 
 		self.force = force
-		self.fmin = -.5
-		self.fmax = .5
+		self.fmin = -40
+		self.fmax = 40
 		self.activeface = 0 
 		self.state = 'texture'
 		self.tri = distmesh.t 
@@ -233,7 +246,7 @@ class Renderer(app.Canvas):
 		self._program.bind(self._vbo)
 		#self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
 
-		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
+		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_force(self.I*3))
 		#for i in range(self.I):
 		#	self._program_lines[u'u_colors[%d]'%i] = tuple(self.linecolors[i,:])
 		self._program_lines['texture1'] = self.linecolors.astype(np.uint8)
@@ -370,6 +383,7 @@ class Renderer(app.Canvas):
 			self._program_outline.draw('lines', self.outline_buffer)
 		#Draw wireframe, too
 		if self.state != 'raw' and self.state != 'outline':
+			gloo.set_state('opaque')
 			self._program_lines.draw('lines', self.outline_buffer)
 
 	def on_key_press(self, event):
@@ -530,21 +544,21 @@ class Renderer(app.Canvas):
 				f = self.force(self.l[3*idx,0], self.l0[3*idx,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
 				c = 255*min(max(c, 0), 1)
-				self.linecolors[3*idx,:] = [0, 0, c, 255]
+				self.linecolors[3*idx,:] = [0, 128, c, 255]
 				#Second edge
 				pt = vertices[t[1],:]-vertices[t[2],:]
 				self.l[3*idx+1,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+1,0], self.l0[3*idx+1,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
-				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+1,:] = [0, 0, c, 255]
+				c = 255*min(max(c, 0), 1)
+				self.linecolors[3*idx+1,:] = [0, 128, c, 255]
 				#Third edge
 				pt = vertices[t[2],:]-vertices[t[0],:]
 				self.l[3*idx+2,0] = np.linalg.norm(pt)
 				f = self.force(self.l[3*idx+2,0], self.l0[3*idx+2,0])
 				c = (f-self.fmin)/(self.fmax-self.fmin)
-				c = min(max(c, 0), 1)
-				self.linecolors[3*idx+2,:] = [0, 0, c, 255]
+				c = 255*min(max(c, 0), 1)
+				self.linecolors[3*idx+2,:] = [0, 128, c, 255]
 	
 		#Update uniform data
 		self._updatelinecolors(self.linecolors)
