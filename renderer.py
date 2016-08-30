@@ -447,6 +447,14 @@ class Renderer(app.Canvas):
 			self.outlinecolors[idx,:] = o
 		self._updateoutlinecolors(self.outlinecolors)
 
+	def rendermask(self):
+		with self._fbo4:
+			gloo.clear()
+			self._program_mask.draw('triangles', self.indices_buffer)
+			pixels = gloo.read_pixels()
+		pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
+		return pixels
+
 	def screenshot(self, saveall = False, basename = 'screenshot'):
 		with self._fbo2:
 			print 'saving flowx'

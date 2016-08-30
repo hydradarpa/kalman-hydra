@@ -747,19 +747,57 @@ class KalmanFilter:
 		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
 		p = self.state.vertices()
 		p_orig = p.copy()
-		d = fd(p)
-		ix = d>1
+
+		#Find vertices outside of mask and project these onto contour
 		for idx in range(10):
+			d = fd(p)
+			ix = d > 1
 			if ix.any():
-				dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/ddeps # Numerical
-				dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/ddeps # gradient
+				#First order differencing
+				#dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/(ddeps) # Numerical
+				#dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/(ddeps) # gradient
+				#Central differencing
+				dgradx = (fd(p[ix]+[ddeps,0])-fd(p[ix]-[ddeps,0]))/(2*ddeps) # Numerical
+				dgrady = (fd(p[ix]+[0,ddeps])-fd(p[ix]-[0,ddeps]))/(2*ddeps) # gradient
+				
+				dgrad2 = dgradx**2 + dgrady**2
+				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
+
+		#Find _outer_ vertices inside of mask and project these onto contour
+		#Get rendered mask
+		rend_mask = self.state.renderer.rendermask()[:,:,2]
+		#For each vertex, find if its on the border of the mask... 
+		border = np.zeros(self.N, dtype = bool)
+		for idx, pi in enumerate(p):
+			pii = pi.astype(int)
+			i = np.zeros(8, dtype = bool)
+			i[0] = rend_mask[pii[0,0]+2, pii[0,1]+2]
+			i[1] = rend_mask[pii[0,0]+2, pii[0,1]-2]
+			i[2] = rend_mask[pii[0,0]-2, pii[0,1]+2]
+			i[3] = rend_mask[pii[0,0]-2, pii[0,1]-2]
+			i[4] = rend_mask[pii[0,0], pii[0,1]+2]
+			i[5] = rend_mask[pii[0,0], pii[0,1]-2]
+			i[6] = rend_mask[pii[0,0]+2, pii[0,1]]
+			i[7] = rend_mask[pii[0,0]-2, pii[0,1]]
+			if (np.sum(i) < 8) and (np.sum(i) > 0):
+				border[idx] = 1
+
+		d = fd(p)
+		ix = (d < -1) * border 
+		for idx in range(1):
+			if ix.any():
+				#First order differencing
+				#dgradx = (fd(p[ix]+[ddeps,0])-d[ix])/(ddeps) # Numerical
+				#dgrady = (fd(p[ix]+[0,ddeps])-d[ix])/(ddeps) # gradient
+				#Central differencing
+				dgradx = (fd(p[ix]+[ddeps,0])-fd(p[ix]-[ddeps,0]))/(2*ddeps) # Numerical
+				dgrady = (fd(p[ix]+[0,ddeps])-fd(p[ix]-[0,ddeps]))/(2*ddeps) # gradient
 				dgrad2 = dgradx**2 + dgrady**2
 				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
 		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
 
 		#Update velocities also... or else it might crash...
 		self.state.X[(2*self.N):] += np.reshape(p - p_orig, (-1,1))
-
 
 	def update(self, y_im, y_flow, y_m):
 		#import rpdb2 
