@@ -104,10 +104,13 @@ def timer_counter(tc, inc):
 stats = Statistics()
 
 class KFState:
-	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True, multi = True):
+	def __init__(self, distmesh, im, flow, cuda, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, vel = None, sparse = True, multi = True, alpha = 0.3):
 
 		self.multi = multi 
+		self.alpha = alpha
+
 		print 'multiperturbation rendering:', multi 
+		print 'edge length adaptation rate:', alpha
 		#Set up initial geometry parameters and covariance matrices
 		self._ver = np.array(distmesh.p, np.float32)
 		#self._vel = np.zeros(self._ver.shape, np.float32)
@@ -624,13 +627,14 @@ class KFState:
 		self.renderer.force = f 
 
 class KalmanFilter:
-	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, multi = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
+	def __init__(self, distmesh, im, flow, cuda, vel = None, sparse = True, multi = True, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3, alpha = 0.3):
 		self.distmesh = distmesh
 		self.N = distmesh.size()
 		print 'Creating filter with ' + str(self.N) + ' nodes'
-		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+		self.state = KFState(distmesh, im, flow, cuda, vel=vel, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, alpha = alpha)
 		self.predtime = 0
 		self.updatetime = 0
+		self.adapttime = 0
 
 	def __del__(self):
 		self.state.__del__()
@@ -685,19 +689,34 @@ class KalmanFilter:
 		pt = timeit(self.predict, number = 1)
 		jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
+		at = timeit(self.adaptlength, number = 1)
 		self.predtime += pt
 		self.updatetime += ut
+		self.adapttime += at 
 
 		print 'Current state:', self.state.X.T
 		print 'Prediction time:', pt 
 		print 'Projection time:', jt 
 		print 'Update time: ', ut 
+		print 'Length adjustment time:', at
 		#Save state of each frame
 		if imageoutput is not None:
 			overlay = self.state.renderer.screenshot(saveall=True, basename = imageoutput)
 			#Compute error between predicted image and actual frames
 			self.plotforces(overlay, imageoutput)
 		return self.error(y_im, y_flow, y_m)
+
+	def adaptlength(self):
+		#Adjust length of edges based on how stretched they currently are
+		#and an 'adjustment' rate alpha
+
+		l = self.state.lengths()
+		l0 = self.state.l0
+		alpha = self.state.alpha
+		l0 += (l-l0)*alpha
+
+		self.state.l0 = l0
+
 
 	@timer(stats.statepredtime)
 	def predict(self):
@@ -766,8 +785,8 @@ class KalmanFilter:
 
 class IteratedKalmanFilter(KalmanFilter):
 	#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e-3):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e10):
-		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M)
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-3, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 1e10, alpha = 0.3):
+		KalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, alpha = alpha)
 		self.nI = nI
 		self.reltol = 1e-4
 
@@ -832,9 +851,9 @@ class IteratedKalmanFilter(KalmanFilter):
 
 #Iterated mass-spring Kalman filter
 class IteratedMSKalmanFilter(IteratedKalmanFilter):
-	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-1, eps_Z = 1e-3, eps_J = 1, eps_M = 1):
+	def __init__(self, distmesh, im, flow, cuda, sparse = True, multi = True, nI = 10, eps_F = 1e-1, eps_Z = 1e-3, eps_J = 1, eps_M = 1, alpha = 0.3):
 		#def __init__(self, distmesh, im, flow, cuda, sparse = True, nI = 10, eps_F = 1, eps_Z = 1e-3, eps_J = 1e-3, eps_M = 10):
-		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, nI = nI)
+		IteratedKalmanFilter.__init__(self, distmesh, im, flow, cuda, sparse = sparse, multi = multi, eps_F = eps_F, eps_Z = eps_Z, eps_J = eps_J, eps_M = eps_M, nI = nI, alpha = alpha)
 		#Mass of vertices
 		self.M = 1
 		#Spring stiffness
