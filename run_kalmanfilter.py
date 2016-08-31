@@ -42,11 +42,11 @@ Ben Lansdell
 		help='input optic flow path', nargs = '?')
 	parser.add_argument('fn_out', default='./video/johntest_brightcontrast_short_output.avi', 
 		help='avi output video file', nargs='?')
-	parser.add_argument('-n', '--name', default='johntest_brightcontrast_short', 
+	parser.add_argument('-n', '--name', default='johntest_brightcontrast_short_lengthadapt', 
 		help='name for saving run images', nargs='?')
 	parser.add_argument('-t', '--threshold', default=9,
 		help='threshold intensity below which is background', type = int)
-	parser.add_argument('-s', '--gridsize', default=22,
+	parser.add_argument('-s', '--gridsize', default=25,
 		help='edge length for mesh (smaller is finer; unstable much further below 18)', type = int)
 	parser.add_argument('-c', '--cuda', default=True,
 		help='whether or not to do analysis on CUDA', type = bool)
@@ -67,7 +67,10 @@ Ben Lansdell
 	ret_flow, flowframe = flowstream.peek()
 
 	if ret_flow:
-		kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True)
+		#alpha = 0.3
+		kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True, alpha = 0.3)
+		#alpha = 0
+		#kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True, alpha = 0)
 	else:
 		print 'Cannot read flow stream'
 		return 
@@ -86,7 +89,7 @@ Ben Lansdell
 		#	print 'Iteration %d' % i 
 		#	raw_input("Finished. Press Enter to continue")
 		#	kf.compute(grayframe, flowframe)
-		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_' + str(count))
+		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_%03d'%count)
 	capture.release()
 	output.release()
 	cv2.destroyAllWindows()

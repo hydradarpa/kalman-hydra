@@ -1,3 +1,4 @@
+#!/usr/bin/env python 
 import os.path 
 import os
 from glob import glob 
@@ -14,8 +15,11 @@ ff = 'warp'
 notes = 'masked_iekf_multi'
 
 #Output
-img_in = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/'
-vid_out = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/video/'
+#img_in = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/'
+#vid_out = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/video/'
+
+img_in = './testruns/default_johntest_short/'
+vid_out = './testruns/default_johntest_short/video/'
 
 #Make video directory
 if not os.path.isdir(vid_out):
@@ -30,7 +34,6 @@ for idx,fn in enumerate(sorted(glob(img_in + '*overlay*.png'))):
 #Call ffmpeg to make video
 avconv = 'avconv -framerate 5 -i ' + vid_out + 'overlay_%03d.png -c:v huffyuv -y'
 os.system(avconv + ' ' + vid_out + 'output.avi')
-
 
 #Will display frame number too...??
 #-vf "drawtext=fontfile=Arial.ttf: text=%{n}: x=(w-tw)/2: y=h-(2*lh): fontcolor=white: box=1: boxcolor=0x00000099"
