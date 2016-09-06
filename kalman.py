@@ -156,7 +156,7 @@ class KFState:
 		self.sineface = np.zeros(len(a))
 		for i in range(len(a)):
 			self.sineface[i] = np.cross(a[i,:],b[i,:])/(np.linalg.norm(a[i,:])*np.linalg.norm(b[i,:]))
-		nz = abs(self.sineface) > 0.06
+		nz = abs(self.sineface) > 0.3
 		print 'Removing %d faces for being too flat' % np.sum(nz == 0)
 		self.sineface = self.sineface[nz]
 		self.ori = self.ori[nz]

@@ -46,7 +46,7 @@ Ben Lansdell
 		help='name for saving run images', nargs='?')
 	parser.add_argument('-t', '--threshold', default=9,
 		help='threshold intensity below which is background', type = int)
-	parser.add_argument('-s', '--gridsize', default=25,
+	parser.add_argument('-s', '--gridsize', default=22,
 		help='edge length for mesh (smaller is finer; unstable much further below 18)', type = int)
 	parser.add_argument('-c', '--cuda', default=True,
 		help='whether or not to do analysis on CUDA', type = bool)
@@ -55,12 +55,28 @@ Ben Lansdell
 	if len(sys.argv) == 1:
 		print("No command line arguments provided, using defaults")
 	
-	capture = VideoStream(args.fn_in, args.threshold)
-
-	frame = capture.current_frame()
-	mask, ctrs, fd = capture.backsub()
-	distmesh = DistMesh(frame, h0 = args.gridsize)
-	distmesh.createMesh(ctrs, fd, frame, plot = True)
+	satisfied = False
+	while not satisfied:
+		capture = VideoStream(args.fn_in, args.threshold)
+		frame = capture.current_frame()
+		mask, ctrs, fd = capture.backsub()
+		distmesh = DistMesh(frame, h0 = args.gridsize)
+		distmesh.createMesh(ctrs, fd, frame, plot = True)
+		a = raw_input('Is this mesh ok? Type ''thresh = xx'' to redo threshold and ''grid = xx'' to redo gridsize. Otherwise press ENTER: (currently threshold = %d, gridsize = %d) '%(args.threshold, args.gridsize))
+		if len(a) == 0:
+			satisfied = True
+			break 
+		words = a.split('=')
+		if len(words) != 2:
+			print 'Didn''t understand your response, continuing with current values'
+			satisfied = True
+		if words[0].strip().lower() == 'thresh':
+			args.threshold = int(words[1])
+		elif words[0].strip().lower() == 'grid':
+			args.gridsize = int(words[1])
+		else:
+			print 'Didn''t understand your response, continuing with current values'
+			satisfied = True
 	
 	#Load flow data from directory
 	flowstream = FlowStream(args.flow_in)
