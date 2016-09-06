@@ -19,12 +19,21 @@ args.threshold=9
 args.gridsize=22
 args.cuda=True
 
+dm_out = './testrun_kalmanfilter.pkl'
+
 capture = VideoStream(args.fn_in, args.threshold)
 
 frame = capture.current_frame()
 mask, ctrs, fd = capture.backsub()
+
+#distmesh = DistMesh(frame, h0 = args.gridsize)
+#distmesh.createMesh(ctrs, fd, frame, plot = True)
+#Save this distmesh and reload it for quicker testing
+#distmesh.save(dm_out)
+
+#Load...
 distmesh = DistMesh(frame, h0 = args.gridsize)
-distmesh.createMesh(ctrs, fd, frame, plot = True)
+distmesh.load(dm_out)
 
 #Load flow data from directory
 flowstream = FlowStream(args.flow_in)
@@ -37,12 +46,22 @@ else:
 
 #kf.compute(capture.gray_frame(), flowframe)
 nI = 3
-count = 0
+count = 1
+
+print 'Frame %d' % count 
+ret, frame, grayframe, mask = capture.read()
+ret_flow, flowframe = flowstream.read()
+
+kf.predict()
+kf.projectmask(mask)
+kf.state.refresh()
+
 while(capture.isOpened()):
 	count += 1
 	print 'Frame %d' % count 
 	ret, frame, grayframe, mask = capture.read()
 	ret_flow, flowframe = flowstream.read()
+
 	if ret is False or ret_flow is False:
 		break
 	#for i in range(nI):
@@ -50,6 +69,7 @@ while(capture.isOpened()):
 	#	raw_input("Finished. Press Enter to continue")
 	#	kf.compute(grayframe, flowframe)
 	kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_' + str(count))
+
 capture.release()
 output.release()
 cv2.destroyAllWindows()

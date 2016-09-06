@@ -18,6 +18,8 @@ from timeit import timeit
 import time 
 from numpy.linalg import norm, inv 
 
+import matplotlib.pyplot as plt
+
 from useful import * 
 
 np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
@@ -765,22 +767,37 @@ class KalmanFilter:
 
 		#Find _outer_ vertices inside of mask and project these onto contour
 		#Get rendered mask
+
 		rend_mask = self.state.renderer.rendermask()[:,:,2]
+		#rend_mask = np.flipud(rend_mask)
+
 		#For each vertex, find if its on the border of the mask... 
 		border = np.zeros(self.N, dtype = bool)
 		for idx, pi in enumerate(p):
 			pii = pi.astype(int)
 			i = np.zeros(8, dtype = bool)
-			i[0] = rend_mask[pii[0,0]+2, pii[0,1]+2]
-			i[1] = rend_mask[pii[0,0]+2, pii[0,1]-2]
-			i[2] = rend_mask[pii[0,0]-2, pii[0,1]+2]
-			i[3] = rend_mask[pii[0,0]-2, pii[0,1]-2]
-			i[4] = rend_mask[pii[0,0], pii[0,1]+2]
-			i[5] = rend_mask[pii[0,0], pii[0,1]-2]
-			i[6] = rend_mask[pii[0,0]+2, pii[0,1]]
-			i[7] = rend_mask[pii[0,0]-2, pii[0,1]]
+			i[0] = rend_mask[pii[0,1]+2, pii[0,0]+2]
+			i[1] = rend_mask[pii[0,1]+2, pii[0,0]-2]
+			i[2] = rend_mask[pii[0,1]-2, pii[0,0]+2]
+			i[3] = rend_mask[pii[0,1]-2, pii[0,0]-2]
+			i[4] = rend_mask[pii[0,1],   pii[0,0]+2]
+			i[5] = rend_mask[pii[0,1],   pii[0,0]-2]
+			i[6] = rend_mask[pii[0,1]+2, pii[0,0]]
+			i[7] = rend_mask[pii[0,1]-2, pii[0,0]]
 			if (np.sum(i) < 8) and (np.sum(i) > 0):
 				border[idx] = 1
+
+		#Plot the mask...
+		#prend_mask = rend_mask.copy()
+		#for pi in p:
+		#	pii = pi.astype(int)
+		#	prend_mask[pii[0,1],   pii[0,0]] = 300
+		#	prend_mask[pii[0,1]+1, pii[0,0]] = 300
+		#	prend_mask[pii[0,1],   pii[0,0]+1] = 300
+		#	prend_mask[pii[0,1]+1, pii[0,0]+1] = 300
+		#plt.imshow(prend_mask)
+		#plt.colorbar()
+		#plt.show()
 
 		d = fd(p)
 		ix = (d < -1) * border 
@@ -794,6 +811,8 @@ class KalmanFilter:
 				dgrady = (fd(p[ix]+[0,ddeps])-fd(p[ix]-[0,ddeps]))/(2*ddeps) # gradient
 				dgrad2 = dgradx**2 + dgrady**2
 				p[ix] -= (d[ix]*np.vstack((dgradx, dgrady))/dgrad2).T # Project
+
+		#Write changes
 		self.state.X[0:(2*self.N)] = np.reshape(p, (-1,1))
 
 		#Update velocities also... or else it might crash...
