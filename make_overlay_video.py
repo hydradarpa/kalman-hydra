@@ -18,8 +18,11 @@ notes = 'masked_iekf_multi'
 #img_in = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/'
 #vid_out = './synthetictests/' + name + '/' + ff + '_' + notes + '_pred/video/'
 
-img_in = './testruns/default_johntest_short/'
-vid_out = './testruns/default_johntest_short/video/'
+#img_in = './testruns/default_johntest_short/'
+#vid_out = './testruns/default_johntest_short/video/'
+
+img_in = './screenshots/johntest_brightcontrast_short_lengthadapt_frame'
+vid_out = './testruns/lengthadapt_johntest_short/video/'
 
 #Make video directory
 if not os.path.isdir(vid_out):

@@ -84,7 +84,7 @@ Ben Lansdell
 
 	if ret_flow:
 		#alpha = 0.3
-		kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True, alpha = 0.3)
+		kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True, alpha = 0.3, nI = 4)
 		#alpha = 0
 		#kf = IteratedMSKalmanFilter(distmesh, frame, flowframe, cuda = args.cuda, sparse = True, multi = True, alpha = 0)
 	else:
