@@ -31,6 +31,9 @@ def ms_threshold(args):
 def ms_findContours(m):
 	return cv2.findContours(m,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
 
+def ms_cvtColor_flip(x):
+	return cv2.cvtColor(x, cv2.COLOR_BGRA2RGBA)
+
 #From http://www.pyimagesearch.com/2015/08/10/checking-your-opencv-version-using-python/
 def is_cv2():
     # if we are using OpenCV 2, then our cv2.__version__ will start

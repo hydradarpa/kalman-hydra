@@ -769,7 +769,6 @@ class KalmanFilter:
 		#Get rendered mask
 
 		rend_mask = self.state.renderer.rendermask()
-		print rend_mask.shape 
 		rend_mask = rend_mask[:,:,2]
 		#rend_mask = np.flipud(rend_mask)
 
