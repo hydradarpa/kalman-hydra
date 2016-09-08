@@ -7,7 +7,7 @@
 import numpy as np 
 from vispy import gloo
 from vispy import app
-from imgproc import findObjectThreshold
+from imgproc import findObjectThreshold, memsafe_exec, ms_cvtColor
 import cv2 
 from time import gmtime, strftime
 from matplotlib import pyplot as plt
@@ -452,7 +452,7 @@ class Renderer(app.Canvas):
 			gloo.clear()
 			self._program_mask.draw('triangles', self.indices_buffer)
 			pixels = gloo.read_pixels()
-		pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
+		pixels = memsafe_exec(ms_cvtColor, [pixels])
 		return pixels
 
 	def screenshot(self, saveall = False, basename = 'screenshot'):
@@ -486,7 +486,8 @@ class Renderer(app.Canvas):
 				self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 				self.draw(None)
 				pixels = gloo.read_pixels()
-				pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
+				#pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2RGBA)
+				pixels = memsafe_exec(ms_cvtColor(), [pixels])
 				if state == 'overlay':
 					overlay = pixels
 				fn = './' + basename + '_' + state + '_' + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) + '.png'
@@ -771,13 +772,15 @@ class VideoStream:
 		self.ny = ny
 		self.frame = frame
 		self.frame_orig = frame.copy()
-		self.grayframe = cv2.cvtColor(self.frame,cv2.COLOR_BGR2GRAY)
+		#self.grayframe = cv2.cvtColor(self.frame,cv2.COLOR_BGR2GRAY)
+		self.grayframe = memsafe_exec(ms_cvtColor, [self.frame])
 
 	def read(self, backsub = True):
 		try:
 			ret, frame = self.cap.read()
 			self.frame = frame 
-			self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+			#self.grayframe = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+			self.grayframe = memsafe_exec(ms_cvtColor, [self.frame])
 		except:
 			ret = False
 			frame = None

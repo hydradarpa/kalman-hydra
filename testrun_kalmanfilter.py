@@ -48,13 +48,13 @@ else:
 nI = 3
 count = 1
 
-print 'Frame %d' % count 
-ret, frame, grayframe, mask = capture.read()
-ret_flow, flowframe = flowstream.read()
+#print 'Frame %d' % count 
+#ret, frame, grayframe, mask = capture.read()
+#ret_flow, flowframe = flowstream.read()
 
-kf.predict()
-kf.projectmask(mask)
-kf.state.refresh()
+#kf.predict()
+#kf.projectmask(mask)
+#kf.state.refresh()
 
 while(capture.isOpened()):
 	count += 1
