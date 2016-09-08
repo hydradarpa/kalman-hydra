@@ -34,6 +34,13 @@ def ms_findContours(m):
 def ms_cvtColor_flip(x):
 	return cv2.cvtColor(x, cv2.COLOR_BGRA2RGBA)
 
+
+#Still needs isolating??
+#cv2.pointPolygonTest??
+#cv2.contourArea??
+#cv2.circle??
+#cv2.line??
+
 #From http://www.pyimagesearch.com/2015/08/10/checking-your-opencv-version-using-python/
 def is_cv2():
     # if we are using OpenCV 2, then our cv2.__version__ will start
