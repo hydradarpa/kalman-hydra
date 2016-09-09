@@ -31,7 +31,8 @@ from vispy import gloo
 
 from jinja2 import Template 
 
-import pdb 
+import pdb
+import logging  
 import cv2
 from matplotlib import pyplot as plt
 
@@ -984,12 +985,14 @@ class CUDAGL_multi(CUDAGL):
 		bytesize = self.height*self.width
 
 		#Perturb first
+		logging.debug('---------- Perturb and render first point')
 		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
 		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] - deltaX)
 
 		#Load pixel buffers
+		logging.debug('---------- map into CUDA accessible memory')
 		self.pycuda_yp_tilde_pbo.unregister()
 		self.pycuda_yp_fx_tilde_pbo.unregister()
 		self.pycuda_yp_fy_tilde_pbo.unregister()
@@ -1004,12 +1007,14 @@ class CUDAGL_multi(CUDAGL):
 		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Perturb second
+		logging.debug('---------- Perturb and render second point')
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] - deltaX)
 
 		#Load pixel buffers
+		logging.debug('---------- map into CUDA accessible memory')
 		self.pycuda_ypp_tilde_pbo.unregister()
 		self.pycuda_ypp_fx_tilde_pbo.unregister()
 		self.pycuda_ypp_fy_tilde_pbo.unregister()
@@ -1024,6 +1029,7 @@ class CUDAGL_multi(CUDAGL):
 		self.pycuda_ypp_m_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_m_tilde_pbo))
 
 		#Send to CUDA!
+		logging.debug('---------- Perform reduction with CUDA')
 		return self._process_j_multi()
 
 	def _process_j_multi(self):

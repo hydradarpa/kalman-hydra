@@ -4,6 +4,8 @@ from kalman import KalmanFilter, IteratedMSKalmanFilter
 from renderer import VideoStream, FlowStream
 from distmesh_dyn import DistMesh
 
+import logging
+
 import pdb 
 
 def main():
@@ -52,9 +54,15 @@ Ben Lansdell
 		help='whether or not to do analysis on CUDA', type = bool)
 	args = parser.parse_args()
 
+	logging.basicConfig(filename='run_kalmanfilter.log',level=logging.DEBUG, \
+		format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+	logging.info(' == run_kalmanfilter.py ==\nInitializing...')
+
 	if len(sys.argv) == 1:
 		print("No command line arguments provided, using defaults")
+		logging.info("No command line arguments provided, using defaults")
 	
+	logging.info("Generating mesh")
 	satisfied = False
 	while not satisfied:
 		capture = VideoStream(args.fn_in, args.threshold)
@@ -77,10 +85,13 @@ Ben Lansdell
 		else:
 			print 'Didn''t understand your response, continuing with current values'
 			satisfied = True
-	
+
+	logging.info("Created mesh")
+
 	#Load flow data from directory
 	flowstream = FlowStream(args.flow_in)
 	ret_flow, flowframe = flowstream.peek()
+	logging.info("Loaded optic flow data")
 
 	if ret_flow:
 		#alpha = 0.3
@@ -90,8 +101,10 @@ Ben Lansdell
 	else:
 		print 'Cannot read flow stream'
 		return 
+	logging.info("Created Kalman Filter, Renderer and CUDA objects")
 
 	#kf.compute(capture.gray_frame(), flowframe)
+	logging.info("Starting main loop")
 	nI = 3
 	count = 0
 	while(capture.isOpened()):
@@ -99,6 +112,8 @@ Ben Lansdell
 		print 'Frame %d' % count 
 		ret, frame, grayframe, mask = capture.read()
 		ret_flow, flowframe = flowstream.read()
+		logging.info("Loaded frame %d"%count)
+
 		if ret is False or ret_flow is False:
 			break
 		#for i in range(nI):
@@ -106,6 +121,8 @@ Ben Lansdell
 		#	raw_input("Finished. Press Enter to continue")
 		#	kf.compute(grayframe, flowframe)
 		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_%03d'%count)
+
+	logging.info("Streams empty, closing")
 	capture.release()
 	output.release()
 	cv2.destroyAllWindows()

@@ -12,6 +12,7 @@ from renderer import Renderer
 from imgproc import findObjectThreshold
 
 import pdb
+import logging 
 import sys
 from time import gmtime, strftime
 from timeit import timeit 
@@ -440,6 +441,7 @@ class KFState:
 	#@timer_counter(stats.stateupdatecount, stats.stateupdatetime)
 	@timer_counter(stats.stateupdatetc, [1])
 	def update(self, y_im, y_flow, y_m):
+		logging.debug("----KFState update")
 		if self.multi:
 			(Hz, Hz_components) = self._jacobian_multi(y_im, y_flow, y_m)
 		else:
@@ -455,18 +457,22 @@ class KFState:
 
 	@timer_counter(stats.jacobianrenderstc, stats.jacinc)
 	def _jacobian_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		logging.debug("------KFState multi jacobian")
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
 
 		#Perturb groups of vertices
 		#This loop is ~32 renders, instead of ~280, for hydra1 synthetic mesh of 35 nodes
 		for idx, e in enumerate(self.E):
+			logging.debug("--------Perturbing partition %d"%idx)
 			self.refresh(idx) 
 			self.render()
 			#Set reference image to unperturbed images
+			logging.debug("--------initjacobian")
 			self.renderer.initjacobian(y_im, y_flow, y_m)
 			for i in range(2):
 				for j in range(2):
+					logging.debug("--------Rendering perturbation")
 					offset = i+2*self.N*j 
 					#print e 
 					ee = offset + 2*np.array(e, dtype=np.int)
@@ -489,11 +495,13 @@ class KFState:
 					Hz[ee,0] = Hz[ee,0]/2
 					Hz_components[ee,:] = Hz_components[ee,:]/2
 
+		logging.debug("------Finished")
 		self.refresh() 
 		self.render()
 		return (Hz, Hz_components)
 
 	def _jacobian(self, y_im, y_flow, y_m, deltaX = 2):
+		logging.debug("------KFState single jacobian")
 		Hz = np.zeros((self.size(),1))
 		Hz_components = np.zeros((self.size(),4))
 		self.refresh() 
@@ -524,6 +532,7 @@ class KFState:
 
 	@timer_counter(stats.hessianrenderstc, stats.hessinc)
 	def _hessian(self, y_im, y_flow, y_m, deltaX = 2):
+		logging.debug("------KFState single dense Hessian")
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
 		self.render()
@@ -542,13 +551,16 @@ class KFState:
 
 	@timer_counter(stats.hessianrenderstc, stats.hessincsparse)
 	def _hessian_sparse_multi(self, y_im, y_flow, y_m, deltaX = 2):
+		logging.debug("------KFState multi sparse Hessian")
 		HTH = np.zeros((self.size(),self.size()))
 		HTH_c = np.zeros((4, self.size(), self.size()))
 
 		for idx, e in enumerate(self.E_hessian):
+			logging.debug("-------- Perturbing partition %d"%idx)
 			self.refresh(idx, hess = True) 
 			self.render()
 			#Set reference image to unperturbed images
+			logging.debug("-------- initjacobian")
 			self.renderer.initjacobian(y_im, y_flow, y_m)
 			ee = e.copy()
 			eeidx = self.E_hessian_idx[idx]
@@ -557,6 +569,7 @@ class KFState:
 				for j1 in range(2):
 					for i2 in range(2):
 						for j2 in range(2):
+							logging.debug("-------- Rendering")
 							offset1 = i1+2*self.N*j1 
 							offset2 = i2+2*self.N*j2 
 							ee[:,0] = 2*e[:,0] + offset1 
@@ -581,11 +594,13 @@ class KFState:
 								HTH_c[3,q1,q2] = hcomp[idx2,3]/deltaX/deltaX
 								HTH_c[3,q2,q1] = HTH_c[3,q1,q2]
 
+		logging.debug("------Finished")
 		self.refresh() 
 		self.render()
 		return HTH
 
 	def _hessian_sparse(self, y_im, y_flow, y_m, deltaX = 2):
+		logging.debug("------KFState single sparse Hessian")
 		HTH = np.zeros((self.size(),self.size()))
 		self.refresh() 
 		self.render()
@@ -680,6 +695,8 @@ class KalmanFilter:
 		cv2.imwrite(fn, overlay)
 
 	def compute(self, y_im, y_flow, y_m, maskflow = True, imageoutput = None):
+
+		logging.info("Computing frame")
 		self.state.renderer.update_frame(y_im, y_flow, y_m)
 		#Mask optic flow frame by contour of y_im
 		if maskflow is True:
@@ -692,6 +709,7 @@ class KalmanFilter:
 		jt = timeit(lambda: self.projectmask(y_m), number = 1)
 		ut = timeit(lambda: self.update(y_im, y_flow_mask, y_m), number = 1)
 		at = timeit(self.adaptlength, number = 1)
+		logging.info("Finished computing frame")
 		self.predtime += pt
 		self.updatetime += ut
 		self.adapttime += at 
@@ -712,6 +730,7 @@ class KalmanFilter:
 		#Adjust length of edges based on how stretched they currently are
 		#and an 'adjustment' rate alpha
 
+		logging.info("--Adapt lengths")
 		l = self.state.lengths()
 		l0 = self.state.l0
 		alpha = self.state.alpha
@@ -723,6 +742,7 @@ class KalmanFilter:
 	@timer(stats.statepredtime)
 	def predict(self):
 		print '-- predicting'
+		logging.info("--KF prediction")
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 
@@ -744,6 +764,7 @@ class KalmanFilter:
 
 	def projectmask(self, y_m):
 		print '-- projecting outliers onto contour'
+		logging.info("--KF projection")
 		#Project vertices onto boundary 
 		ddeps = 1e-1
 		(mask2, ctrs, fd) = findObjectThreshold(y_m, threshold = 0.5)
@@ -822,6 +843,7 @@ class KalmanFilter:
 		#import rpdb2 
 		#rpdb2.start_embedded_debugger("asdf")
 		print '-- updating'
+		logging.info("--KF update")
 		X = self.state.X
 		W = self.state.W
 		#eps_Z = self.state.eps_Z
@@ -852,6 +874,7 @@ class IteratedKalmanFilter(KalmanFilter):
 		#rpdb2.start_embedded_debugger("asdf")
 		#np.set_printoptions(threshold = 'nan', linewidth = 150, precision = 1)
 		print '-- updating'
+		logging.info("--KF update")
 		X = self.state.X
 		X_orig = X.copy()
 		X_old = X.copy()
