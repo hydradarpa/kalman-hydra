@@ -768,8 +768,7 @@ class KalmanFilter:
 		#Find _outer_ vertices inside of mask and project these onto contour
 		#Get rendered mask
 
-		rend_mask = self.state.renderer.rendermask()
-		rend_mask = rend_mask[:,:,2]
+		rend_mask = self.state.renderer.rendermask()[:,:,2]
 		#rend_mask = np.flipud(rend_mask)
 
 		#For each vertex, find if its on the border of the mask... 

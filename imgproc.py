@@ -10,36 +10,6 @@ import functions.video
 from functions.common import draw_str
 
 from matplotlib import pyplot as plt
-import multiprocessing
-
-#By running on separate process
-#Any large mallocs are immediately returned to system after execution
-def memsafe_exec(f, args):
-	pool = multiprocessing.Pool(processes = 1)
-	#ret = pool.map(lambda x: cv2.cvtColor(x, cv2.COLOR_BGR2GRAY), [frame])
-	ret = pool.map(f, args)
-	pool.close()
-	pool.join()
-	return ret[0]
-
-def ms_cvtColor(x):
-	return cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
-
-def ms_threshold(args):
-	return cv2.threshold(args[0], args[1], 255, cv2.THRESH_TOZERO)
-
-def ms_findContours(m):
-	return cv2.findContours(m,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
-
-def ms_cvtColor_flip(x):
-	return cv2.cvtColor(x, cv2.COLOR_BGRA2RGBA)
-
-
-#Still needs isolating??
-#cv2.pointPolygonTest??
-#cv2.contourArea??
-#cv2.circle??
-#cv2.line??
 
 #From http://www.pyimagesearch.com/2015/08/10/checking-your-opencv-version-using-python/
 def is_cv2():
@@ -220,22 +190,19 @@ def findObjectThreshold(img, threshold = 7):
 
 	#Just try simple thresholding instead: (quick!, seems to work fine)
 	if len(img.shape) == 3:
-		frame_gray = memsafe_exec(ms_cvtColor, [img])
+		frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 	else:
 		frame_gray = img 
 
 	#Global threshold
-	#ret1, mask = memsafe_exec(lambda x: cv2.threshold(x, threshold, 255, cv2.THRESH_TOZERO), [frame_gray])
-	ret1, mask = memsafe_exec(ms_threshold, [(frame_gray, threshold)])
+	ret1, mask = cv2.threshold(frame_gray, threshold, 255, cv2.THRESH_TOZERO)
 	mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
 
 	#Find contours of mask
 	if is_cv3():
-		#im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
-		im2, c, h = memsafe_exec(ms_findContours, [mask2.copy()])
+		im2, c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
 	else:
-		#c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
-		c, h = memsafe_exec(ms_findContours, [mask2.copy()])
+		c, h = cv2.findContours(mask2.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)	
 	ctrs = Contours(c, h)
 	
 	#Remove contours that are smaller than 40 square pixels, or that are above
@@ -323,8 +290,7 @@ def placeBorderPoints(contours, hierarchy, npoints):
 
 def placeGoodTrackingPoints(img, mask):
 	feature_params = dict( maxCorners = 100, qualityLevel = 0.05, minDistance = 7, blockSize = 7)
-	#gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)	#Find contours of mask
-	gray = memsafe_exec(ms_cvtColor(), [img])
+	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)	#Find contours of mask
 	return cv2.goodFeaturesToTrack(gray, mask = mask, **feature_params)
 
 def drawPoints(img, pts, types = None):
