@@ -985,14 +985,14 @@ class CUDAGL_multi(CUDAGL):
 		bytesize = self.height*self.width
 
 		#Perturb first
-		logging.debug('---------- Perturb and render first point')
+		#logging.debug('---------- Perturb and render first point')
 		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
 		state.X[ee[:,0],0] = np.squeeze(state.X[ee[:,0],0] - deltaX)
 
 		#Load pixel buffers
-		logging.debug('---------- map into CUDA accessible memory')
+		#logging.debug('---------- map into CUDA accessible memory')
 		self.pycuda_yp_tilde_pbo.unregister()
 		self.pycuda_yp_fx_tilde_pbo.unregister()
 		self.pycuda_yp_fy_tilde_pbo.unregister()
@@ -1007,22 +1007,24 @@ class CUDAGL_multi(CUDAGL):
 		self.pycuda_yp_m_tilde_pbo = cuda_gl.BufferObject(long(self.yp_m_tilde_pbo))
 
 		#Perturb second
-		logging.debug('---------- Perturb and render second point')
+		#logging.debug('---------- Perturb and render second point')
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] + deltaX)
 		state.refresh(label, hess = True)
 		state.render()
 		state.X[ee[:,1],0] = np.squeeze(state.X[ee[:,1],0] - deltaX)
 
 		#Load pixel buffers
-		logging.debug('---------- map into CUDA accessible memory')
+		#logging.debug('---------- 2nd map into CUDA accessible memory. Unregister')
 		self.pycuda_ypp_tilde_pbo.unregister()
 		self.pycuda_ypp_fx_tilde_pbo.unregister()
 		self.pycuda_ypp_fy_tilde_pbo.unregister()
 		self.pycuda_ypp_m_tilde_pbo.unregister()
+		logging.debug('---------- Pack texture into PBO')
 		self._pack_texture_into_PBO(self.ypp_tilde_pbo, self.texid, bytesize, GL_UNSIGNED_BYTE)
 		self._pack_texture_into_PBO(self.ypp_fx_tilde_pbo, self.tex_fx_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(self.ypp_fy_tilde_pbo, self.tex_fy_id, bytesize*floatsize, GL_FLOAT)
 		self._pack_texture_into_PBO(self.ypp_m_tilde_pbo, self.tex_m_id, bytesize*rgbsize, GL_UNSIGNED_BYTE, imageformat = GL_RGBA)
+		#logging.debug('---------- Create cuda_gl BufferObjects')
 		self.pycuda_ypp_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_tilde_pbo))
 		self.pycuda_ypp_fx_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fx_tilde_pbo))
 		self.pycuda_ypp_fy_tilde_pbo = cuda_gl.BufferObject(long(self.ypp_fy_tilde_pbo))

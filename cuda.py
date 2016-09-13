@@ -7,6 +7,8 @@
 import numpy as np, Image
 import sys, time, os
 
+import logging
+
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
@@ -517,13 +519,17 @@ class CUDAGL:
 		 self.pycuda_y_m_pbo, self.y_m_pbo = [None]*32
 
 	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW, imageformat = GL_RED):
+		logging.debug("------------ Bind PIXEL_PACK_ARB to pbo")
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(pbo))
 		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
 		glBufferData(GL_PIXEL_PACK_BUFFER_ARB, bytesize, None, usage)
+		logging.debug("------------ Enable texture")
 		glEnable(GL_TEXTURE_2D)
 		glActiveTexture(GL_TEXTURE0)
+		logging.debug("------------ Load textureId %d and unpack"%texid)
 		glBindTexture(GL_TEXTURE_2D, texid)
 		glGetTexImage(GL_TEXTURE_2D, 0, imageformat, texformat, ctypes.c_void_p(0))
+		logging.debug("------------ Bind PIXEL_PACK_ARB to null")
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0)
 		glDisable(GL_TEXTURE_2D)
 
