@@ -656,8 +656,11 @@ class KalmanFilter:
 	def __del__(self):
 		self.state.__del__()
 
+	def save(self, fn_out):
+		return 
+
 	def plotforces(self, overlay, imageoutput):
-		sc = 2
+		sc = 10
 		#Get original pt locations
 		ox = self.orig_x[0:(2*self.N)].reshape((-1,2))
 		#Get prediction location
@@ -683,7 +686,7 @@ class KalmanFilter:
 
 		font = cv2.FONT_HERSHEY_SIMPLEX
 		#cv2.putText(img,'Hello World!',(10,500), font, 1,(255,255,255),2)
-		legendtext = 'red = mask force\ngreen = flow force\nblue = template force\nwhite = prediction'
+		legendtext = 'red = mask force\ngreen = flow force\nblue = template force\nwhite = prediction\nscale factor = %d'%sc
 		x0, y0 = (20,20)
 		dy = 20
 		for i, line in enumerate(legendtext.split('\n')):
@@ -719,6 +722,9 @@ class KalmanFilter:
 		print 'Projection time:', jt 
 		print 'Update time: ', ut 
 		print 'Length adjustment time:', at
+
+		#Update history of tracking
+		
 		#Save state of each frame
 		if imageoutput is not None:
 			overlay = self.state.renderer.screenshot(saveall=True, basename = imageoutput)

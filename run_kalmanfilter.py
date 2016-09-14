@@ -52,9 +52,22 @@ Ben Lansdell
 		help='edge length for mesh (smaller is finer; unstable much further below 18)', type = int)
 	parser.add_argument('-c', '--cuda', default=True,
 		help='whether or not to do analysis on CUDA', type = bool)
+	parser.add_argument('-l', '--logfile', default='./run_kalmanfilter.log',
+		help='Output logfile', type = str)
+	parser.add_argument('-v', '--level', default=1,
+		help='0 == Error, 1 == Info, 2 == Debug', type = int)
 	args = parser.parse_args()
 
-	logging.basicConfig(filename='run_kalmanfilter.log',level=logging.DEBUG, \
+	if args.level == 0:
+		level = logging.ERROR
+	elif args.level == 1:
+		level = logging.INFO
+	elif args.level == 2:
+		level = logging.DEBUG
+
+	print level 
+
+	logging.basicConfig(filename=args.logfile, level=level, \
 		format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 	logging.info(' == run_kalmanfilter.py ==\nInitializing...')
 
@@ -105,7 +118,6 @@ Ben Lansdell
 
 	#kf.compute(capture.gray_frame(), flowframe)
 	logging.info("Starting main loop")
-	nI = 3
 	count = 0
 	while(capture.isOpened()):
 		count += 1
@@ -116,15 +128,11 @@ Ben Lansdell
 
 		if ret is False or ret_flow is False:
 			break
-		#for i in range(nI):
-		#	print 'Iteration %d' % i 
-		#	raw_input("Finished. Press Enter to continue")
-		#	kf.compute(grayframe, flowframe)
+
 		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_%03d'%count)
+		kf.save(mesh_out)
 
 	logging.info("Streams empty, closing")
-	capture.release()
-	output.release()
 	cv2.destroyAllWindows()
 	raw_input("Finished. Press ENTER to exit")
 
