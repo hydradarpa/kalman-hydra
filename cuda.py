@@ -518,7 +518,8 @@ class CUDAGL:
 		 self.pycuda_y_fy_pbo, self.y_fy_pbo,\
 		 self.pycuda_y_m_pbo, self.y_m_pbo = [None]*32
 
-	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW, imageformat = GL_RED):
+	#def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_DRAW, imageformat = GL_RED):
+	def _pack_texture_into_PBO(self, pbo, texid, bytesize, texformat, usage = GL_STREAM_READ, imageformat = GL_RED):
 		logging.debug("------------ Bind PIXEL_PACK_ARB to pbo")
 		glBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, long(pbo))
 		#Needed? is according to http://stackoverflow.com/questions/10507215/how-to-copy-a-texture-into-a-pbo-in-pyopengl
