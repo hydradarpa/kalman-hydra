@@ -724,7 +724,7 @@ class KalmanFilter:
 		print 'Length adjustment time:', at
 
 		#Update history of tracking
-		
+
 		#Save state of each frame
 		if imageoutput is not None:
 			overlay = self.state.renderer.screenshot(saveall=True, basename = imageoutput)
@@ -736,11 +736,14 @@ class KalmanFilter:
 		#Adjust length of edges based on how stretched they currently are
 		#and an 'adjustment' rate alpha
 
+		minlength = 5
 		logging.info("--Adapt lengths")
 		l = self.state.lengths()
 		l0 = self.state.l0
 		alpha = self.state.alpha
 		l0 += (l-l0)*alpha
+
+		l0[l0 < minlength] = minlength
 
 		self.state.l0 = l0
 

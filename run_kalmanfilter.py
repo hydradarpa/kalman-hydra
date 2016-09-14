@@ -130,7 +130,7 @@ Ben Lansdell
 			break
 
 		kf.compute(grayframe, flowframe, mask, imageoutput = 'screenshots/' + args.name + '_frame_%03d'%count)
-		kf.save(mesh_out)
+		#kf.save(mesh_out)
 
 	logging.info("Streams empty, closing")
 	cv2.destroyAllWindows()
