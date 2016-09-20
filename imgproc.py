@@ -194,6 +194,8 @@ def findObjectThreshold(img, threshold = 7):
 	else:
 		frame_gray = img 
 
+	frame_gray = cv2.blur(frame_gray, (5,5))
+
 	#Global threshold
 	ret1, mask = cv2.threshold(frame_gray, threshold, 255, cv2.THRESH_TOZERO)
 	mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
@@ -213,6 +215,7 @@ def findObjectThreshold(img, threshold = 7):
 		maxarea = max(maxarea, cv2.contourArea(ct))
 	while changed:
 		changed = False 
+		print 'length: %d' % len(ctrs.contours)
 		for idx, (ct, level) in enumerate(ctrs.traverse()):
 			area = cv2.contourArea(ct)
 			if area < maxarea and level == 0:
@@ -225,7 +228,7 @@ def findObjectThreshold(img, threshold = 7):
 				break 
 			if level > 1:
 				ctrs.remove(idx)
-				changed = True 
+				changed = True
 				break 
 
 	#Make the signed diff function

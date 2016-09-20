@@ -87,15 +87,19 @@ void main()
 """
 
 #Need to make this paint the colors of the faces
+	#Line removed from shader
+	#//uniform vec3 u_colors[%d];
 def frag_shader_mask(F):
 	FRAG_SHADER_MASK = """
 	#version 330 
-	uniform vec3 u_colors[%d];
+	uniform sampler1D texture1;
+	float nComp = %d;
 	out vec4 fragmentColor;
 	void main()
 	{
-		fragmentColor.rgb = u_colors[gl_PrimitiveID]/255;
-		fragmentColor.a = 1.0;
+		//fragmentColor.rgb = u_colors[gl_PrimitiveID]/255;
+		fragmentColor = texture(texture1, (gl_PrimitiveID+1)/(nComp+1));
+		//fragmentColor.a = 1.0;
 	}
 	""" % F
 	return FRAG_SHADER_MASK
@@ -262,8 +266,10 @@ class Renderer(app.Canvas):
 		self._program_flow.bind(self._vbo)
 		self._program_red = gloo.Program(VERT_SHADER, FRAG_SHADER_RED)
 		self._program_green = gloo.Program(VERT_SHADER, FRAG_SHADER_GREEN)
+
 		self._program_mask = gloo.Program(VERT_SHADER, frag_shader_mask(self.F))
-		self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
+		#self._program_mask['u_colors'] = np.squeeze(self.facecolors[:,:,0])
+		self._program_mask['texture1'] = np.squeeze(self.facecolors[:,:,0]).astype(np.uint8)
 		self._program_mask.bind(self._vbo)
 
 		self._program_outline = gloo.Program(VERT_SHADER, frag_shader_lines(self.I))
@@ -341,8 +347,9 @@ class Renderer(app.Canvas):
 		self.draw(event)
 
 	def _updatemaskpalette(self, colors):
-		for i in range(len(colors)):
-			self._program_mask['u_colors[%d]'%i] = colors[i,:]
+		self._program_mask['texture1'] = colors.astype(np.uint8)
+		#for i in range(len(colors)):
+		#	self._program_mask['u_colors[%d]'%i] = colors[i,:]
 
 	def _updatelinecolors(self, colors):
 		self._program_lines['texture1'] = colors.astype(np.uint8)
@@ -629,29 +636,29 @@ class Renderer(app.Canvas):
 		self.outlinecolors = np.zeros((len(triangles),4))		
 
 		#Setup multiperturbation face colors
-		self.facecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
+		self.facecolors = 255*np.ones((len(self.tri), 4, labels.shape[1]+1), dtype=np.uint8)
 		for i in range(labels.shape[1]):
 			for idx,t in enumerate(self.tri):
 				self.facecolors[idx, 1, i] = np.floor_divide(labels[idx,i], 256)
 				self.facecolors[idx, 2, i] = np.remainder(labels[idx,i], 256)
 
 		#Setup multiperturbation face colors, randomized for clearer visualization
-		randcolors = np.random.rand(len(vertices), 3)
-		self.randfacecolors = 255*np.ones((len(self.tri), 3, labels.shape[1]+1), dtype=np.uint8)
+		randcolors = np.random.rand(len(vertices), 4)
+		self.randfacecolors = 255*np.ones((len(self.tri), 4, labels.shape[1]+1), dtype=np.uint8)
 		for i in range(labels.shape[1]):
 			for idx,t in enumerate(self.tri):
 				self.randfacecolors[idx, :, i] = 255*randcolors[labels[idx,i],:]
 
 		#Setup multiperturbation face colors
-		self.hessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		self.hessfacecolors = 255*np.ones((len(self.tri), 4, labels_hess.shape[1]+1), dtype=np.uint8)
 		for i in range(labels_hess.shape[1]):
 			for idx,t in enumerate(self.tri):
 				self.hessfacecolors[idx, 1, i] = np.floor_divide(labels_hess[idx,i], 256)
 				self.hessfacecolors[idx, 2, i] = np.remainder(labels_hess[idx,i], 256)
 
 		#Setup multiperturbation face colors
-		randcolors = np.random.rand(np.max(labels_hess)+1, 3)
-		self.randhessfacecolors = 255*np.ones((len(self.tri), 3, labels_hess.shape[1]+1), dtype=np.uint8)
+		randcolors = np.random.rand(np.max(labels_hess)+1, 4)
+		self.randhessfacecolors = 255*np.ones((len(self.tri), 4, labels_hess.shape[1]+1), dtype=np.uint8)
 		for i in range(labels_hess.shape[1]):
 			for idx,t in enumerate(self.tri):
 				self.randhessfacecolors[idx, :, i] = 255*randcolors[labels_hess[idx,i],:]
