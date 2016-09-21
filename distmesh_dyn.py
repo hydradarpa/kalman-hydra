@@ -27,7 +27,7 @@ class DistMesh:
 		self.deps=np.sqrt(np.finfo(np.double).eps)*h0;
 		self.densityctrlfreq = 1;
 		self.k = 1.5
-		self.maxiter = 500
+		self.maxiter = 100
 		#Force law
 		#self.F = lambda L: self.k/(L*(40-L))**2-1/400**2
 		self.F = lambda L: -self.k*(L-h0)
@@ -76,7 +76,7 @@ class DistMesh:
 		################################################################################
 		
 		while count < self.maxiter: 
-			#print count 
+			print 'DistMesh create count: %d/%d' % (count, self.maxiter) 
 			count += 1
 			# 3. Retriangulation by the Delaunay algorithm
 			dist = lambda p1, p2: np.sqrt(((p1-p2)**2).sum(1))

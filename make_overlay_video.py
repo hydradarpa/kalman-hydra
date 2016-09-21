@@ -21,8 +21,8 @@ notes = 'masked_iekf_multi'
 #img_in = './testruns/default_johntest_short/'
 #vid_out = './testruns/default_johntest_short/video/'
 
-img_in = './screenshots/johntest_brightcontrast_short_lengthadapt_frame'
-vid_out = './testruns/lengthadapt3_johntest_short/video/'
+img_in = './screenshots/stack0001_frame'
+vid_out = './testruns/stack0001/'
 
 #Make video directory
 if not os.path.isdir(vid_out):
