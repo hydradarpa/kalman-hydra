@@ -215,7 +215,7 @@ def findObjectThreshold(img, threshold = 7):
 		maxarea = max(maxarea, cv2.contourArea(ct))
 	while changed:
 		changed = False 
-		print 'length: %d' % len(ctrs.contours)
+		#print 'length: %d' % len(ctrs.contours)
 		for idx, (ct, level) in enumerate(ctrs.traverse()):
 			area = cv2.contourArea(ct)
 			if area < maxarea and level == 0:

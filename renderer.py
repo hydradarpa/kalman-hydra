@@ -369,6 +369,8 @@ class Renderer(app.Canvas):
 	def draw(self, event):
 		#Turn on additive blending
 		gloo.set_state('additive')
+		gloo.set_state(cull_face = True)
+		gloo.set_cull_face('front')
 		gloo.clear()
 		#Summary render to main screen
 		if self.state == 'texture' or self.state == 'raw':
