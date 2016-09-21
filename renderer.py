@@ -230,10 +230,11 @@ class Renderer(app.Canvas):
 		title = 'Hydra tracker. Displaying %s state (space to toggle)' % self.state
 		size = (nx, nx)
 		app.Canvas.__init__(self, keys='interactive', title = title, show = showtracking, size=size, resizable=False)
-		self.indices_buffer, self.outline_buffer, self.vertex_data, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx, labels, labels_hess)
+		self.indices_buffer, self.outline_buffer, self.vertex_data, self.vertex_data_inverse, self.quad_data, self.quad_buffer, self.l0 = self.loadMesh(distmesh.p, vel, distmesh.t, nx, labels, labels_hess)
 		self.l = self.l0.copy()
 
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
+		self._vbo_inverse = gloo.VertexBuffer(self.vertex_data_inverse)
 		self._quad = gloo.VertexBuffer(self.quad_data)
 		self.current_frame = im1
 		self.current_texture = gloo.Texture2D(im1)
@@ -249,6 +250,10 @@ class Renderer(app.Canvas):
 		self._program['texture1'] = self.init_texture
 		self._program.bind(self._vbo)
 		#self._program_lines = gloo.Program(VERT_SHADER, FRAG_SHADER_LINES)
+
+		self._program_inverse = gloo.Program(VERT_SHADER, FRAG_SHADER)
+		self._program_inverse['texture1'] = self.init_texture
+		self._program_inverse.bind(self._vbo_inverse)
 
 		self._program_lines = gloo.Program(VERT_SHADER, frag_shader_force(self.I*3))
 		#for i in range(self.I):
@@ -385,6 +390,14 @@ class Renderer(app.Canvas):
 			self._program_green.bind(self._vbo)
 			self._program_green['texture1'] = self.init_texture
 			self._program_green.draw('triangles', self.indices_buffer)
+		elif self.state == 'inverse':
+			#Load current frame as texture
+			self._program_inverse['texture1'] = self.current_texture
+			#Set UV coords of texture to current state coords
+			#self._vbo_inverse['asdf']
+			#Set coords of rendered object to initial state coords
+			self._program_inverse.bind(self._vbo_inverse)
+			self._program_inverse.draw('triangles', self.indices_buffer)
 		else:
 			self._program_outline.bind(self._vbo)
 			self._program_outline.draw('lines', self.outline_buffer)
@@ -405,6 +418,8 @@ class Renderer(app.Canvas):
 				self.state = 'mask'
 			elif self.state == 'mask':
 				self.state = 'outline'
+			elif self.state == 'outline':
+				self.state = 'inverse'
 			else:
 				self.state = 'flow'
 			self.title = 'Hydra tracker. Displaying %s state (space to toggle, q to quit).' % self.state
@@ -487,7 +502,7 @@ class Renderer(app.Canvas):
 			self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
 			#change render mode, rerender, and save
 			#for state in ['flow', 'raw', 'overlay', 'texture']:
-			for state in ['raw', 'overlay', 'texture', 'mask']:
+			for state in ['raw', 'overlay', 'texture', 'mask', 'inverse']:
 				print 'saving', state
 				self.state = state
 				self._updatemaskpalette(np.squeeze(self.hessfacecolors[:,:,1]))
@@ -543,6 +558,10 @@ class Renderer(app.Canvas):
 		self.vertex_data['a_position'] = verdata
 		self.vertex_data['a_velocity'] = veldata 
 		self._vbo = gloo.VertexBuffer(self.vertex_data)
+
+		self.vertex_data_inverse['a_texcoord'] = vertices/self.nx
+		self._vbo_inverse = gloo.VertexBuffer(self.vertex_data_inverse)
+
 		self._program.bind(self._vbo)
 		self._program_lines.bind(self._vbo)
 		self._program_flowx.bind(self._vbo)
@@ -595,6 +614,8 @@ class Renderer(app.Canvas):
 		self.nx = nx
 		vertex_data = np.zeros(self.nP, dtype=[('a_position', np.float32, 3),
 			('a_texcoord', np.float32, 2), ('a_velocity', np.float32, 3)])
+		vertex_data_inverse = np.zeros(self.nP, dtype=[('a_position', np.float32, 3),
+			('a_texcoord', np.float32, 2), ('a_velocity', np.float32, 3)])
 		verdata = np.zeros((self.nP,3))
 		veldata = np.zeros((self.nP,3))
 		uvdata = np.zeros((self.nP,2))
@@ -609,6 +630,9 @@ class Renderer(app.Canvas):
 		vertex_data['a_position'] = verdata
 		vertex_data['a_texcoord'] = uvdata 
 		vertex_data['a_velocity'] = veldata 
+		vertex_data_inverse['a_position'] = verdata
+		vertex_data_inverse['a_texcoord'] = uvdata 
+		vertex_data_inverse['a_velocity'] = veldata 
 		indices = triangles.reshape((1,-1)).astype(np.uint16)
 		indices_buffer = gloo.IndexBuffer(indices)
 	
@@ -680,7 +704,7 @@ class Renderer(app.Canvas):
 		quad_triangles = np.array([[0, 1, 2], [1, 2, 3]])
 		quad_indices = quad_triangles.reshape((1,-1)).astype(np.uint16)
 		quad_buffer = gloo.IndexBuffer(quad_indices)
-		return indices_buffer, outline_buffer, vertex_data, quad_data, quad_buffer, l0
+		return indices_buffer, outline_buffer, vertex_data, vertex_data_inverse, quad_data, quad_buffer, l0
 
 	def update_frame(self, y_im, y_flow, y_m):
 		self.current_frame = y_im 
