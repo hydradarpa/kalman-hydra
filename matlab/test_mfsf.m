@@ -1,12 +1,12 @@
 path_in = './video/20160412/stk_0001';
-path_res = './video/20160412/stk_0001_mfsf'; 
+path_res = './video/20160412/stk_0001_mfsf_nref100'; 
 
 % Run MFSF (same command as in case 1, but we have deleted the
 % specification of MaxPL,W), with default parameters that will create good
 % results (limiting the coarse-to-fine strategy to process pyramid levels with at most
 % MaxPIXpyr=20000 pixels):
-[u,v,parmsOF,info] = runMFSF('path_in',path_in,'frname_frmt','frame_%03d.tif', 'nref', 1, 'sframe', 1, ...
- 'nframe', 2, 'MaxPIXpyr', 20000);
+[u,v,parmsOF,info] = runMFSF('path_in',path_in,'frname_frmt','frame_%03d.tif', 'nref', 100, 'sframe', 1, ...
+ 'nframe', 200, 'MaxPIXpyr', 20000);
 
 % Save the result:
 mkdir(path_res);
