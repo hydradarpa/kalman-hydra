@@ -3,8 +3,8 @@ import sys
 from distmesh_dyn import DistMesh
 from imgproc import findObjectThreshold 
 from synth import test_data, test_data_texture, test_data_image
-from kalman import KalmanFilter, IteratedKalmanFilter, KalmanFilterMorph,\
-		MSKalmanFilter, IteratedMSKalmanFilter, stats
+from kalman import KalmanFilter, IteratedKalmanFilter,\
+		IteratedMSKalmanFilter, stats
 from renderer import VideoStream
 
 import cProfile
