@@ -369,7 +369,7 @@ class Renderer(app.Canvas):
 	def draw(self, event):
 		#Turn on additive blending
 		gloo.set_state('additive')
-		gloo.set_state(cull_face = True)
+		gloo.set_state(cull_face = False)
 		gloo.set_cull_face('front')
 		gloo.clear()
 		#Summary render to main screen
@@ -703,7 +703,7 @@ class Renderer(app.Canvas):
 		quad_data['a_texcoord'] = quad_coord 
 		quad_data['a_position'] = quad_ver 
 		quad_data['a_velocity'] = quad_vel 
-		quad_triangles = np.array([[0, 1, 2], [1, 2, 3]])
+		quad_triangles = np.array([[0, 2, 1], [2, 1, 3]])
 		quad_indices = quad_triangles.reshape((1,-1)).astype(np.uint16)
 		quad_buffer = gloo.IndexBuffer(quad_indices)
 		return indices_buffer, outline_buffer, vertex_data, vertex_data_inverse, quad_data, quad_buffer, l0
@@ -858,6 +858,12 @@ class VideoStream:
 
 	def isOpened(self):
 		return self.cap.isOpened()
+
+	def release(self):
+		return self.cap.release()
+
+	def seek(self, frameIndex):
+		self.cap.set(cv2.CAP_PROP_POS_FRAMES, frameIndex);
 
 class FlowStream:
 	def __init__(self, path):
