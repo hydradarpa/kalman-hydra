@@ -21,8 +21,11 @@ notes = 'masked_iekf_multi'
 #img_in = './testruns/default_johntest_short/'
 #vid_out = './testruns/default_johntest_short/video/'
 
-img_in = './screenshots/johntest_brightcontrast_short_lengthadapt_frame'
-vid_out = './testruns/lengthadapt4_johntest_short/'
+#img_in = './screenshots/johntest_brightcontrast_short_lengthadapt_frame/'
+#vid_out = './testruns/lengthadapt4_johntest_short/'
+
+img_in = './mfsf_results/stk_0001_mfsf_nref100/mesh/'
+vid_out = './mfsf_results/stk_0001_mfsf_nref100/mesh_overlay/'
 
 #Make video directory
 if not os.path.isdir(vid_out):
@@ -37,6 +40,8 @@ for idx,fn in enumerate(sorted(glob(img_in + '*overlay*.png'))):
 #Call ffmpeg to make video
 avconv = 'avconv -framerate 5 -i ' + vid_out + 'overlay_%03d.png -c:v huffyuv -y'
 os.system(avconv + ' ' + vid_out + 'output.avi')
+
+
 
 #Will display frame number too...??
 #-vf "drawtext=fontfile=Arial.ttf: text=%{n}: x=(w-tw)/2: y=h-(2*lh): fontcolor=white: box=1: boxcolor=0x00000099"
