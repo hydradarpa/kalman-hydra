@@ -7,29 +7,34 @@ import scipy.spatial as spspatial
 import distmesh.mlcompat as ml
 import distmesh.utils as dmutils
 import functions.video
+
+import warnings 
+
 from functions.common import draw_str
+
+from decimal import Decimal, BasicContext
 
 from matplotlib import pyplot as plt
 
 #From http://www.pyimagesearch.com/2015/08/10/checking-your-opencv-version-using-python/
 def is_cv2():
-    # if we are using OpenCV 2, then our cv2.__version__ will start
-    # with '2.'
-    return check_opencv_version("2.")
+	# if we are using OpenCV 2, then our cv2.__version__ will start
+	# with '2.'
+	return check_opencv_version("2.")
  
 def is_cv3():
-    # if we are using OpenCV 3.X, then our cv2.__version__ will start
-    # with '3.'
-    return check_opencv_version("3.")
+	# if we are using OpenCV 3.X, then our cv2.__version__ will start
+	# with '3.'
+	return check_opencv_version("3.")
  
 def check_opencv_version(major, lib=None):
-    # if the supplied library is None, import OpenCV
-    if lib is None:
-        import cv2 as lib
-        
-    # return whether or not the current OpenCV version matches the
-    # major version number
-    return lib.__version__.startswith(major)
+	# if the supplied library is None, import OpenCV
+	if lib is None:
+		import cv2 as lib
+		
+	# return whether or not the current OpenCV version matches the
+	# major version number
+	return lib.__version__.startswith(major)
 
 class Contours:
 	def __init__(self, contours, hierarchy = None):
@@ -319,3 +324,51 @@ def drawGrid(img, pts, bars, L = None, F = None):
 
 def interpolateSparseOpticFlow():
 	return 
+
+
+def load_ground_truth(csv_file_name):
+	# return a array of frame or a list of dict of tuples indexed by nueron id (x-int, y-int, rad-radius)
+
+	cells = []
+	rows = np.loadtxt(csv_file_name, usecols=[2,4,5,7], delimiter=',', dtype=float)
+	max_frame = 0
+	min_frame = 100
+	for row in rows:
+		frame = int(row[3])
+		max_frame = max(max_frame, frame)
+		min_frame = min(min_frame, frame)
+
+	if min_frame != 0:
+		print('csv file starting frame is not 0')
+
+	cells = [dict() for _ in range(max_frame+1)]
+
+	#File format
+	#   0     1 2  3      4      5 6 7
+	#           *         *      *   *
+	# 102,61416,1,-1,201.38,496.75,0,0,0,82056,1,2.6533e+05,76.243,232,54,255,7423,76.198
+	#           * neuron_id
+	#                     * x
+	#                            * y 
+	#                                * frame
+
+	for row in rows:
+		neuron_id = int(row[0])
+		x = int(Decimal(row[1]).to_integral_value(context=BasicContext))
+		y = int(Decimal(row[2]).to_integral_value(context=BasicContext))
+		frame = int(row[3])
+		(cells[frame])[neuron_id] = [x,y]
+
+	# load override list
+	with warnings.catch_warnings():
+		warnings.simplefilter("ignore")
+		rows = np.loadtxt(csv_file_name + '-override', usecols=[0,1,2,3], delimiter=',',dtype=int)
+
+	for row in rows:
+		neuron_id = int(row[0])
+		x = int(Decimal(row[1]).to_integral_value(context=BasicContext))
+		y = int(Decimal(row[2]).to_integral_value(context=BasicContext))
+		frame = int(row[3])
+		(cells[frame])[neuron_id] = [x,y]
+
+	return [cells, max_frame]
